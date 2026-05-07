@@ -7,14 +7,23 @@ interface LiquidGlassProps {
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  variant?: "dark" | "light";
 }
 
-export function LiquidGlass({ children, className, contentClassName }: LiquidGlassProps) {
+export function LiquidGlass({
+  children,
+  className,
+  contentClassName,
+  variant = "dark",
+}: LiquidGlassProps) {
+  const isLight = variant === "light";
   return (
     <div
       className={cn(
         "relative overflow-hidden rounded-3xl",
-        "shadow-[0_16px_42px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.04),inset_0_1px_0_rgba(255,255,255,0.14)]",
+        isLight
+          ? "shadow-[0_12px_30px_rgba(15,23,42,0.12),0_0_0_1px_rgba(148,163,184,0.2),inset_0_1px_0_rgba(255,255,255,0.8)]"
+          : "shadow-[0_16px_42px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.04),inset_0_1px_0_rgba(255,255,255,0.14)]",
         className,
       )}
       style={{
@@ -30,9 +39,28 @@ export function LiquidGlass({ children, className, contentClassName }: LiquidGla
           isolation: "isolate",
         }}
       />
-      <div className="absolute inset-0 z-10 bg-[rgba(4,4,8,0.72)]" />
-      <div className="absolute inset-0 z-20 bg-[linear-gradient(135deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.035)_100%)]" />
-      <div className="absolute inset-0 z-30 shadow-[inset_2px_2px_1px_0_rgba(255,255,255,0.16),inset_-1px_-1px_1px_1px_rgba(255,255,255,0.1)]" />
+      <div
+        className={cn(
+          "absolute inset-0 z-10",
+          isLight ? "bg-[rgba(255,255,255,0.74)]" : "bg-[rgba(4,4,8,0.72)]",
+        )}
+      />
+      <div
+        className={cn(
+          "absolute inset-0 z-20",
+          isLight
+            ? "bg-[linear-gradient(135deg,rgba(255,255,255,0.95)_0%,rgba(255,255,255,0.58)_100%)]"
+            : "bg-[linear-gradient(135deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.035)_100%)]",
+        )}
+      />
+      <div
+        className={cn(
+          "absolute inset-0 z-30",
+          isLight
+            ? "shadow-[inset_2px_2px_1px_0_rgba(255,255,255,0.85),inset_-1px_-1px_1px_1px_rgba(255,255,255,0.7)]"
+            : "shadow-[inset_2px_2px_1px_0_rgba(255,255,255,0.16),inset_-1px_-1px_1px_1px_rgba(255,255,255,0.1)]",
+        )}
+      />
 
       <div className={cn("relative z-40", contentClassName)}>{children}</div>
     </div>

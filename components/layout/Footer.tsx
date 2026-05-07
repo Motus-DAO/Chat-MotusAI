@@ -103,6 +103,13 @@ export function Footer() {
                     <span>Perfil</span>
                     <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
+                  <Link
+                    href="/certificados"
+                    className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group"
+                  >
+                    <span>Certificados</span>
+                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
                 </div>
               </div>
             </GlassCard>

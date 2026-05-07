@@ -15,6 +15,7 @@ import {
   Command,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUIStore } from "@/lib/store";
 
 interface UseAutoResizeTextareaProps {
   minHeight: number;
@@ -121,6 +122,8 @@ interface AnimatedAIChatProps {
 
 export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   const containerHeightClass = fullScreen ? "min-h-screen" : "min-h-[640px]";
+  const { theme } = useUIStore();
+  const isLight = theme === "light";
   const [value, setValue] = useState("");
   const [messages, setMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
@@ -216,17 +219,22 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   }, []);
 
   const handleSendMessage = () => {
-    if (value.trim()) {
-      startTransition(() => {
-        setIsTyping(true);
-        const userMessage = value.trim();
-        const history: { role: "user" | "assistant"; content: string }[] = [
-          ...messages,
-          { role: "user", content: userMessage },
-        ];
-        setMessages(history);
+    const userMessage = value.trim();
+    if (!userMessage) return;
 
-        fetch("/api/motusai", {
+    setValue("");
+    adjustHeight(true);
+
+    startTransition(() => {
+      setIsTyping(true);
+      const priorMessages = messages;
+      const nextMessages: { role: "user" | "assistant"; content: string }[] = [
+        ...messages,
+        { role: "user", content: userMessage },
+      ];
+      setMessages(nextMessages);
+
+      fetch("/api/motusai", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -235,7 +243,8 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
             message: userMessage,
             language: "es",
             conversation_type: "professional_supervision",
-            history,
+            // Prior turns only; API appends `message` — avoids duplicating the last user turn
+            history: priorMessages,
           }),
         })
           .then(async (res) => {
@@ -268,11 +277,8 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
           })
           .finally(() => {
             setIsTyping(false);
-            setValue("");
-            adjustHeight(true);
           });
-      });
-    }
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -330,7 +336,8 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   return (
     <div
       className={cn(
-        "relative flex w-full flex-col items-center justify-center overflow-hidden bg-transparent p-6 text-white",
+        "relative flex w-full flex-col items-center justify-center overflow-hidden bg-transparent p-6",
+        isLight ? "text-slate-900" : "text-white",
         containerHeightClass,
       )}
     >
@@ -353,18 +360,21 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               transition={{ delay: 0.2, duration: 0.5 }}
               className="inline-block"
             >
-              <h1 className="bg-gradient-to-r from-white/90 to-white/40 bg-clip-text pb-1 text-3xl font-medium tracking-tight text-transparent">
+              <h1 className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 bg-clip-text pb-1 text-3xl font-medium tracking-tight text-transparent">
                 How can I help today?
               </h1>
               <motion.div
-                className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                className="h-px bg-gradient-to-r from-violet-500/0 via-fuchsia-400/70 to-pink-500/0"
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: "100%", opacity: 1 }}
                 transition={{ delay: 0.5, duration: 0.8 }}
               />
             </motion.div>
             <motion.p
-              className="text-sm text-white/40"
+              className={cn(
+                "text-sm",
+                isLight ? "text-slate-600" : "bg-gradient-to-r from-violet-300/90 to-pink-400/85 bg-clip-text text-transparent",
+              )}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
@@ -374,9 +384,16 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
           </div>
 
           {/* Messages list */}
-          <div className="max-h-[360px] space-y-3 overflow-y-auto rounded-2xl border border-white/[0.05] bg-black/20 p-4">
+          <div
+            className={cn(
+              "max-h-[360px] space-y-3 overflow-y-auto rounded-2xl border p-4",
+              isLight
+                ? "border-slate-300/70 bg-white/70"
+                : "border-white/[0.05] bg-black/20",
+            )}
+          >
             {messages.length === 0 && (
-              <p className="text-sm text-white/35">
+              <p className={cn("text-sm", isLight ? "text-slate-600" : "text-white/35")}>
                 Describe brevemente tu caso clínico (anónimo) o tu duda de
                 supervisión, y el asistente responderá según el marco
                 ético‑lógico de MotusAI.
@@ -394,8 +411,12 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                   className={cn(
                     "max-w-[80%] rounded-2xl px-3 py-2 text-sm",
                     m.role === "user"
-                      ? "bg-white text-black"
-                      : "bg-white/[0.06] text-white/90",
+                      ? isLight
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-black"
+                      : isLight
+                        ? "bg-white text-slate-800 border border-slate-200"
+                        : "bg-white/[0.06] text-white/90",
                   )}
                 >
                   {m.content}
@@ -405,7 +426,12 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
           </div>
 
           <motion.div
-            className="relative rounded-2xl border border-white/[0.05] bg-white/[0.02] shadow-2xl backdrop-blur-2xl"
+            className={cn(
+              "relative rounded-2xl border shadow-2xl backdrop-blur-2xl",
+              isLight
+                ? "border-slate-300/70 bg-white/70"
+                : "border-white/[0.05] bg-white/[0.02]",
+            )}
             initial={{ scale: 0.98 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.1 }}
@@ -420,26 +446,30 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                   exit={{ opacity: 0, y: 5 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <div className="bg-black/95 py-1">
+                  <div className={cn("py-1", isLight ? "bg-white/95" : "bg-black/95")}>
                     {commandSuggestions.map((suggestion, index) => (
                       <motion.div
                         key={suggestion.prefix}
                         className={cn(
                           "flex cursor-pointer items-center gap-2 px-3 py-2 text-xs transition-colors",
                           activeSuggestion === index
-                            ? "bg-white/10 text-white"
-                            : "text-white/70 hover:bg-white/5",
+                            ? isLight
+                              ? "bg-slate-100 text-slate-900"
+                              : "bg-white/10 text-white"
+                            : isLight
+                              ? "text-slate-600 hover:bg-slate-100"
+                              : "text-white/70 hover:bg-white/5",
                         )}
                         onClick={() => selectCommandSuggestion(index)}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: index * 0.03 }}
                       >
-                        <div className="flex h-5 w-5 items-center justify-center text-white/60">
+                        <div className={cn("flex h-5 w-5 items-center justify-center", isLight ? "text-slate-500" : "text-white/60")}>
                           {suggestion.icon}
                         </div>
                         <div className="font-medium">{suggestion.label}</div>
-                        <div className="ml-1 text-xs text-white/40">
+                        <div className={cn("ml-1 text-xs", isLight ? "text-slate-400" : "text-white/40")}>
                           {suggestion.prefix}
                         </div>
                       </motion.div>
@@ -463,8 +493,9 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 placeholder="Ask zap a question..."
                 containerClassName="w-full"
                 className={cn(
-                  "min-h-[60px] w-full resize-none bg-transparent px-4 py-3 text-sm text-white/90",
-                  "border-none placeholder:text-white/20 focus:outline-none",
+                  "min-h-[60px] w-full resize-none bg-transparent px-4 py-3 text-sm",
+                  "border-none focus:outline-none",
+                  isLight ? "text-slate-900 placeholder:text-slate-500" : "text-white/90 placeholder:text-white/20",
                 )}
                 style={{
                   overflow: "hidden",
@@ -492,7 +523,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                       <span>{file}</span>
                       <button
                         onClick={() => removeAttachment(index)}
-                        className="text-white/40 transition-colors hover:text-white"
+                        className={cn("transition-colors", isLight ? "text-slate-400 hover:text-slate-700" : "text-white/40 hover:text-white")}
                       >
                         <XIcon className="h-3 w-3" />
                       </button>
@@ -502,17 +533,28 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               )}
             </AnimatePresence>
 
-            <div className="flex items-center justify-between gap-4 border-t border-white/[0.05] p-4">
+            <div
+              className={cn(
+                "flex items-center justify-between gap-4 border-t p-4",
+                isLight ? "border-slate-300/70" : "border-white/[0.05]",
+              )}
+            >
               <div className="flex items-center gap-3">
                 <motion.button
                   type="button"
                   onClick={handleAttachFile}
                   whileTap={{ scale: 0.94 }}
-                  className="group relative rounded-lg p-2 text-white/40 transition-colors hover:text-white/90"
+                  className={cn(
+                    "group relative rounded-lg p-2 transition-colors",
+                    isLight ? "text-slate-500 hover:text-slate-900" : "text-white/40 hover:text-white/90",
+                  )}
                 >
                   <Paperclip className="h-4 w-4" />
                   <motion.span
-                    className="absolute inset-0 rounded-lg bg-white/[0.05] opacity-0 transition-opacity group-hover:opacity-100"
+                    className={cn(
+                      "absolute inset-0 rounded-lg opacity-0 transition-opacity group-hover:opacity-100",
+                      isLight ? "bg-slate-200/60" : "bg-white/[0.05]",
+                    )}
                     layoutId="button-highlight"
                   />
                 </motion.button>
@@ -526,12 +568,19 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                   whileTap={{ scale: 0.94 }}
                   className={cn(
                     "group relative rounded-lg p-2 text-white/40 transition-colors hover:text-white/90",
-                    showCommandPalette && "bg-white/10 text-white/90",
+                    isLight
+                      ? "text-slate-500 hover:text-slate-900"
+                      : "text-white/40 hover:text-white/90",
+                    showCommandPalette &&
+                      (isLight ? "bg-slate-200/80 text-slate-900" : "bg-white/10 text-white/90"),
                   )}
                 >
                   <Command className="h-4 w-4" />
                   <motion.span
-                    className="absolute inset-0 rounded-lg bg-white/[0.05] opacity-0 transition-opacity group-hover:opacity-100"
+                    className={cn(
+                      "absolute inset-0 rounded-lg opacity-0 transition-opacity group-hover:opacity-100",
+                      isLight ? "bg-slate-200/60" : "bg-white/[0.05]",
+                    )}
                     layoutId="button-highlight"
                   />
                 </motion.button>
@@ -546,8 +595,12 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
                   value.trim()
-                    ? "bg-white text-[#0A0A0B] shadow-lg shadow-white/10"
-                    : "bg-white/[0.05] text-white/40",
+                    ? isLight
+                      ? "bg-slate-900 text-white shadow-lg shadow-slate-300/60"
+                      : "bg-white text-[#0A0A0B] shadow-lg shadow-white/10"
+                    : isLight
+                      ? "bg-slate-200/80 text-slate-500"
+                      : "bg-white/[0.05] text-white/40",
                 )}
               >
                 {isTyping ? (
@@ -565,7 +618,12 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               <motion.button
                 key={suggestion.prefix}
                 onClick={() => selectCommandSuggestion(index)}
-                className="group relative flex items-center gap-2 rounded-lg bg-white/[0.02] px-3 py-2 text-sm text-white/60 transition-all hover:bg-white/[0.05] hover:text-white/90"
+                className={cn(
+                  "group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
+                  isLight
+                    ? "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200"
+                    : "bg-white/[0.02] text-white/60 hover:bg-white/[0.05] hover:text-white/90",
+                )}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
@@ -573,7 +631,10 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 {suggestion.icon}
                 <span>{suggestion.label}</span>
                 <motion.div
-                  className="absolute inset-0 rounded-lg border border-white/[0.05]"
+                  className={cn(
+                    "absolute inset-0 rounded-lg border",
+                    isLight ? "border-slate-200" : "border-white/[0.05]",
+                  )}
                   initial={false}
                   animate={{
                     opacity: [0, 1],
@@ -588,7 +649,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
             ))}
           </div>
           {recentCommand && (
-            <p className="text-center text-xs text-white/40">
+            <p className={cn("text-center text-xs", isLight ? "text-slate-500" : "text-white/40")}>
               Last command: {recentCommand}
             </p>
           )}
@@ -604,10 +665,10 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
             exit={{ opacity: 0, y: 20 }}
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-7 w-8 items-center justify-center rounded-full bg-white/[0.05] text-center">
-                <span className="mb-0.5 text-xs font-medium text-white/90">zap</span>
+              <div className={cn("flex h-7 w-8 items-center justify-center rounded-full text-center", isLight ? "bg-slate-200/90" : "bg-white/[0.05]")}>
+                <span className={cn("mb-0.5 text-xs font-medium", isLight ? "text-slate-800" : "text-white/90")}>zap</span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-white/70">
+              <div className={cn("flex items-center gap-2 text-sm", isLight ? "text-slate-600" : "text-white/70")}>
                 <span>Thinking</span>
                 <TypingDots />
               </div>

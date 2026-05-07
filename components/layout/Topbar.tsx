@@ -47,6 +47,7 @@ export function Topbar() {
   const [showThemeDropdown, setShowThemeDropdown] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
   const userSyncRef = useRef<string | null>(null)
+  const isLight = theme === 'light'
 
   // Sync WAAP identity into app DB for chat/profile use.
   useEffect(() => {
@@ -117,18 +118,35 @@ export function Topbar() {
   return (
     <header className="fixed top-4 left-0 right-0 z-40 mx-2 sm:mx-4 max-w-full">
       <LiquidGlassFilter />
-      <LiquidGlass className="border border-white/10" contentClassName="flex h-12 sm:h-16 items-center justify-between px-3 sm:px-6">
+      <LiquidGlass
+        variant={isLight ? "light" : "dark"}
+        className={cn(
+          "relative z-40 overflow-visible border",
+          isLight ? "border-slate-200/90" : "border-white/10"
+        )}
+        contentClassName="flex h-12 sm:h-16 items-center justify-between px-3 sm:px-6"
+      >
         {/* Left side */}
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+            className={cn(
+              "p-2 rounded-xl transition-colors",
+              isLight ? "text-slate-800 hover:bg-slate-200/80" : "hover:bg-white/10"
+            )}
             aria-label="Abrir menú"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <div className="hidden rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-xs text-muted-foreground sm:block">
+          <div
+            className={cn(
+              "hidden rounded-2xl border px-4 py-2 text-xs sm:block",
+              isLight
+                ? "border-slate-300 bg-white text-slate-600"
+                : "border-white/15 bg-white/10 text-muted-foreground"
+            )}
+          >
             MotusAI Chat
           </div>
         </div>
@@ -139,7 +157,12 @@ export function Topbar() {
           <div className="relative">
           <button
               onClick={() => setShowThemeDropdown(!showThemeDropdown)}
-            className="p-2 hover:bg-white/15 rounded-xl transition-colors focus-ring"
+            className={cn(
+              "p-2 rounded-xl transition-colors focus-ring",
+              theme === 'light'
+                ? "text-slate-700 hover:bg-black/10"
+                : "text-white/90 hover:bg-white/15"
+            )}
               aria-label="Theme selector"
           >
             {theme === 'light' ? (
@@ -152,14 +175,23 @@ export function Topbar() {
           </button>
 
             {showThemeDropdown && (
-              <LiquidGlass className="absolute top-full right-0 mt-2 w-20 rounded-xl border border-white/10 z-50" contentClassName="p-2 space-y-1">
+              <LiquidGlass
+                variant={isLight ? "light" : "dark"}
+                className={cn(
+                  "absolute top-full right-0 mt-2 w-20 rounded-xl z-50",
+                  isLight ? "border border-slate-200/90" : "border border-white/10"
+                )}
+                contentClassName="p-2 space-y-1"
+              >
                   <button
                     onClick={() => handleThemeChange('light')}
                     className={cn(
                       "w-full flex items-center justify-center p-2 rounded-xl transition-colors",
                       theme === 'light' 
                         ? "bg-yellow-500/20" 
-                        : "hover:bg-white/10"
+                        : isLight
+                          ? "hover:bg-slate-100"
+                          : "hover:bg-white/10"
                     )}
                     title="Light theme"
                   >
@@ -171,7 +203,9 @@ export function Topbar() {
                       "w-full flex items-center justify-center p-2 rounded-xl transition-colors",
                       theme === 'dark' 
                         ? "bg-blue-500/20" 
-                        : "hover:bg-white/10"
+                        : isLight
+                          ? "hover:bg-slate-100"
+                          : "hover:bg-white/10"
                     )}
                     title="Dark theme"
                   >
@@ -183,7 +217,9 @@ export function Topbar() {
                       "w-full flex items-center justify-center p-2 rounded-xl transition-colors",
                       theme === 'matrix' 
                         ? "bg-green-500/20" 
-                        : "hover:bg-white/10"
+                        : isLight
+                          ? "hover:bg-slate-100"
+                          : "hover:bg-white/10"
                     )}
                     title="Matrix theme"
                   >
@@ -198,7 +234,12 @@ export function Topbar() {
             <div className="relative">
               <button
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 sm:py-2 glass hover:bg-white/15 rounded-xl transition-colors"
+                className={cn(
+                  "flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-colors",
+                  theme === 'light'
+                    ? "bg-white/70 text-slate-800 hover:bg-white/90 border border-black/10"
+                    : "glass hover:bg-white/15 text-white/90"
+                )}
               >
                 <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-mauve rounded-full flex items-center justify-center flex-shrink-0">
                   <User className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
@@ -216,23 +257,30 @@ export function Topbar() {
               </button>
 
               {showUserDropdown && (
-                <LiquidGlass className="absolute top-full right-0 mt-2 w-80 rounded-xl border border-white/10 z-50" contentClassName="p-3 space-y-3">
+                <LiquidGlass
+                  variant={isLight ? "light" : "dark"}
+                  className={cn(
+                    "absolute top-full right-0 mt-2 w-80 rounded-xl z-50",
+                    isLight ? "border border-slate-200/90" : "border border-white/10"
+                  )}
+                  contentClassName="p-3 space-y-3"
+                >
                     {/* Email */}
-                    <div className="px-3 py-2 text-sm border-b border-white/10">
+                    <div className={cn("px-3 py-2 text-sm border-b", isLight ? "border-slate-200" : "border-white/10")}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-muted-foreground flex items-center space-x-2">
                           <User className="w-4 h-4" />
                           <span>Email:</span>
                         </span>
                       </div>
-                      <p className="font-mono text-xs break-all">
+                      <p className={cn("font-mono text-xs break-all", isLight ? "text-slate-800" : "")}>
                         {userEmail}
                       </p>
                     </div>
                     
                     {/* EOA Address */}
                     {eoaAddress && (
-                      <div className="px-3 py-2 text-sm border-b border-white/10">
+                      <div className={cn("px-3 py-2 text-sm border-b", isLight ? "border-slate-200" : "border-white/10")}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-muted-foreground flex items-center space-x-2">
                             <Wallet className="w-4 h-4" />
@@ -240,7 +288,10 @@ export function Topbar() {
                           </span>
                           <button
                             onClick={() => handleCopyAddress(eoaAddress, 'eoa')}
-                            className="flex items-center space-x-1 text-xs hover:text-white transition-colors"
+                            className={cn(
+                              "flex items-center space-x-1 text-xs transition-colors",
+                              isLight ? "text-slate-600 hover:text-slate-900" : "hover:text-white"
+                            )}
                           >
                             {copiedAddress === 'eoa' ? (
                               <>
@@ -255,7 +306,7 @@ export function Topbar() {
                             )}
                           </button>
                         </div>
-                        <p className="font-mono text-xs break-all">
+                        <p className={cn("font-mono text-xs break-all", isLight ? "text-slate-800" : "")}>
                           {eoaAddress}
                         </p>
                       </div>
@@ -263,13 +314,13 @@ export function Topbar() {
                     
                     {/* Smart Wallet Address */}
                     {isInitializing ? (
-                      <div className="px-3 py-2 text-sm border-b border-white/10">
+                      <div className={cn("px-3 py-2 text-sm border-b", isLight ? "border-slate-200" : "border-white/10")}>
                         <p className="text-xs text-muted-foreground">
                           Inicializando smart wallet...
                         </p>
                       </div>
                     ) : smartAccountAddress ? (
-                      <div className="px-3 py-2 text-sm border-b border-white/10 border-green-500/30">
+                      <div className={cn("px-3 py-2 text-sm border-b border-green-500/30", isLight ? "border-slate-200" : "border-white/10")}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-muted-foreground flex items-center space-x-2">
                             <Shield className="w-4 h-4 text-green-500" />
@@ -277,7 +328,10 @@ export function Topbar() {
                           </span>
                           <button
                             onClick={() => handleCopyAddress(smartAccountAddress, 'smart')}
-                            className="flex items-center space-x-1 text-xs hover:text-white transition-colors"
+                            className={cn(
+                              "flex items-center space-x-1 text-xs transition-colors",
+                              isLight ? "text-slate-600 hover:text-slate-900" : "hover:text-white"
+                            )}
                           >
                             {copiedAddress === 'smart' ? (
                               <>
@@ -292,12 +346,12 @@ export function Topbar() {
                             )}
                           </button>
                         </div>
-                        <p className="font-mono text-xs break-all">
+                        <p className={cn("font-mono text-xs break-all", isLight ? "text-slate-800" : "")}>
                           {smartAccountAddress}
                         </p>
                       </div>
                     ) : (
-                      <div className="px-3 py-2 text-sm border-b border-white/10">
+                      <div className={cn("px-3 py-2 text-sm border-b", isLight ? "border-slate-200" : "border-white/10")}>
                         <p className="text-xs text-yellow-500">
                           Smart wallet no disponible
                         </p>
@@ -306,7 +360,10 @@ export function Topbar() {
                     
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center space-x-2 px-3 py-2 text-sm hover:bg-white/15 rounded-xl transition-colors text-red-400"
+                      className={cn(
+                        "w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-xl transition-colors",
+                        isLight ? "hover:bg-red-50 text-red-600" : "hover:bg-white/15 text-red-400"
+                      )}
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Desconectar</span>
@@ -335,13 +392,13 @@ export function Topbar() {
       {/* Click outside handlers */}
       {showUserDropdown && (
         <div 
-          className="fixed inset-0 z-10" 
+          className="fixed inset-0 z-30" 
           onClick={() => setShowUserDropdown(false)}
         />
       )}
       {showThemeDropdown && (
         <div 
-          className="fixed inset-0 z-10" 
+          className="fixed inset-0 z-30" 
           onClick={() => setShowThemeDropdown(false)}
         />
       )}

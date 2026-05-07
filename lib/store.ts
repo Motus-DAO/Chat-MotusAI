@@ -69,6 +69,7 @@ export const getNavigationItems = (role: UserRole) => {
   const coreItems = [
     { name: 'Chat Clínico', href: '/motusai', icon: 'Bot' },
     { name: 'Perfil', href: '/perfil', icon: 'User' },
+    { name: 'Certificados', href: '/certificados', icon: 'Award' },
   ]
 
   // Keep role support in state, but share one simple navigation for both.

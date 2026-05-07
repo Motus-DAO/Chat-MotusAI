@@ -43,6 +43,18 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error('Error creating contact message:', error)
+
+    const errorMessage = error instanceof Error ? error.message : ''
+    if (errorMessage.includes('Tenant or user not found')) {
+      return NextResponse.json(
+        {
+          error:
+            'Database authentication failed. Verify DATABASE_URL/DIRECT_URL match your active Supabase project.'
+        },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

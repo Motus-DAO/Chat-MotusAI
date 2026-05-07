@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import OpenAI, {
+  APIConnectionError,
+  APIError,
+  AuthenticationError,
+  RateLimitError,
+} from "openai";
 import { readFile } from "fs/promises";
 import path from "path";
 
@@ -12,6 +17,12 @@ const veniceApiKey = rawVeniceApiKey
     : `VENICE_INFERENCE_KEY_${rawVeniceApiKey}`
   : undefined;
 const veniceModel = process.env.VENICE_MODEL || "zai-org-glm-5";
+
+/** Max prior chat messages sent (user + assistant); avoids context overflow on long threads */
+const MAX_HISTORY_MESSAGES = Math.max(
+  4,
+  Number.parseInt(process.env.MOTUSAI_MAX_HISTORY_MESSAGES ?? "48", 10) || 48,
+);
 
 function createVeniceClient() {
   return new OpenAI({
@@ -31,6 +42,104 @@ type MotusAISupervisionOutput = {
   clinical_notes: string[];
   response: string;
 };
+
+function stripMarkdownFences(raw: string): string {
+  return raw
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+/**
+ * Models sometimes wrap JSON in fences or add a short lead-in; try to recover a single object.
+ */
+function parseMotusSupervisionJson(
+  raw: string,
+): { ok: true; data: MotusAISupervisionOutput } | { ok: false } {
+  const cleaned = stripMarkdownFences(raw);
+  if (!cleaned) return { ok: false };
+
+  try {
+    return {
+      ok: true,
+      data: JSON.parse(cleaned) as MotusAISupervisionOutput,
+    };
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return {
+          ok: true,
+          data: JSON.parse(cleaned.slice(start, end + 1)) as MotusAISupervisionOutput,
+        };
+      } catch {
+        return { ok: false };
+      }
+    }
+  }
+  return { ok: false };
+}
+
+/** Older clients sent the new user turn twice (inside history + as message). Drop duplicate tail. */
+function dedupeTrailingUserMessage(
+  history: { role: "user" | "assistant"; content: string }[],
+  message: string,
+): { role: "user" | "assistant"; content: string }[] {
+  const last = history[history.length - 1];
+  if (
+    last?.role === "user" &&
+    last.content.trim() === message.trim()
+  ) {
+    return history.slice(0, -1);
+  }
+  return history;
+}
+
+function trimHistory(
+  history: { role: "user" | "assistant"; content: string }[],
+): { role: "user" | "assistant"; content: string }[] {
+  if (history.length <= MAX_HISTORY_MESSAGES) return history;
+  return history.slice(-MAX_HISTORY_MESSAGES);
+}
+
+function clientFacingMotusError(error: unknown): string {
+  if (error instanceof RateLimitError) {
+    return "Demasiadas solicitudes en poco tiempo. Espera un momento e intenta de nuevo.";
+  }
+  if (error instanceof APIError) {
+    const msg = `${error.message} ${error.code ?? ""}`.toLowerCase();
+    if (
+      error.status === 400 &&
+      (msg.includes("context") ||
+        msg.includes("token") ||
+        msg.includes("length") ||
+        msg.includes("maximum"))
+    ) {
+      return "La conversación supera el límite del modelo. Inicia un chat nuevo o acorta el hilo.";
+    }
+    if (error.status === 429) {
+      return "El servicio está limitando solicitudes. Intenta de nuevo en unos segundos.";
+    }
+    if (error.status === 503 || error.status === 502) {
+      return "El servicio de inferencia no está disponible momentáneamente. Intenta de nuevo.";
+    }
+  }
+  if (error instanceof APIConnectionError) {
+    return "No se pudo conectar con el asistente. Revisa tu red e intenta de nuevo.";
+  }
+  if (error instanceof AuthenticationError) {
+    return "Configuración del servidor inválida (clave API). Contacta al administrador.";
+  }
+  if (error instanceof Error) {
+    const m = error.message.toLowerCase();
+    if (m.includes("fetch failed") || m.includes("econnreset")) {
+      return "Conexión interrumpida. Intenta de nuevo.";
+    }
+  }
+  return "Error en el asistente clínico. Intenta de nuevo o inicia un chat nuevo.";
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -72,12 +181,19 @@ export async function POST(req: NextRequest) {
 
     const systemHeader = `You are MotusAI-Psychat, operating strictly under the following specification.\nConversation type: ${conversation_type}.\nPreferred language: ${language}.\n\nFollow the spec below exactly:\n\n`;
 
+    const priorHistory = trimHistory(
+      dedupeTrailingUserMessage(
+        Array.isArray(history) ? history : [],
+        message,
+      ),
+    );
+
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: "system",
         content: systemHeader + systemPrompt,
       },
-      ...history.map((m) => ({
+      ...priorHistory.map((m) => ({
         role: m.role,
         content: m.content,
       })),
@@ -99,20 +215,37 @@ export async function POST(req: NextRequest) {
     });
 
     const raw = completion.choices[0]?.message?.content ?? "";
-    const cleaned = raw
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-    let parsed: MotusAISupervisionOutput;
-    try {
-      parsed = JSON.parse(cleaned) as MotusAISupervisionOutput;
-    } catch (err) {
+    if (!raw.trim()) {
+      console.error("MotusAI empty completion", {
+        finish_reason: completion.choices[0]?.finish_reason,
+      });
       return NextResponse.json(
         {
-          error: "Failed to parse model output as JSON",
-          raw,
+          error:
+            "El modelo no devolvió contenido. Intenta de nuevo o acorta el mensaje.",
+        },
+        { status: 502 },
+      );
+    }
+
+    const parsedResult = parseMotusSupervisionJson(raw);
+    if (!parsedResult.ok) {
+      console.error("MotusAI JSON parse failed. Raw prefix:", raw.slice(0, 800));
+      return NextResponse.json(
+        {
+          error:
+            "La respuesta del modelo no se pudo interpretar. Intenta de nuevo o reformula la pregunta.",
+        },
+        { status: 502 },
+      );
+    }
+
+    const parsed = parsedResult.data;
+    if (typeof parsed.response !== "string") {
+      return NextResponse.json(
+        {
+          error:
+            "El modelo devolvió un formato inesperado. Intenta de nuevo.",
         },
         { status: 502 },
       );
@@ -121,15 +254,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(parsed);
   } catch (error) {
     console.error("MotusAI route error:", error);
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown error in MotusAI supervision route";
-    const isAuthError = message.includes("401") || message.includes("Authentication failed");
-    return NextResponse.json(
-      { error: message },
-      { status: isAuthError ? 401 : 500 },
-    );
+    const publicMsg = clientFacingMotusError(error);
+    let status = 500;
+    if (error instanceof AuthenticationError) status = 401;
+    else if (error instanceof RateLimitError) status = 429;
+    else if (error instanceof APIError && typeof error.status === "number") {
+      status =
+        error.status >= 400 && error.status < 600 ? error.status : 500;
+    }
+    return NextResponse.json({ error: publicMsg }, { status });
   }
 }
 

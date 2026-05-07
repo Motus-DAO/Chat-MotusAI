@@ -4,12 +4,15 @@ import { GlassCard } from '@/components/ui/GlassCard'
 import { CTAButton } from '@/components/ui/CTAButton'
 import { useState } from 'react'
 import { Send, CheckCircle, AlertCircle } from 'lucide-react'
+import { useUIStore } from '@/lib/store'
 
 interface ContactFormProps {
   className?: string
 }
 
 export function ContactForm({ className }: ContactFormProps) {
+  const { theme } = useUIStore()
+  const isLight = theme === 'light'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -17,11 +20,13 @@ export function ContactForm({ className }: ContactFormProps) {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [submitError, setSubmitError] = useState<string>('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     setSubmitStatus('idle')
+    setSubmitError('')
 
     try {
       const response = await fetch('/api/contact', {
@@ -36,10 +41,15 @@ export function ContactForm({ className }: ContactFormProps) {
         setSubmitStatus('success')
         setFormData({ name: '', email: '', message: '' })
       } else {
+        const payload = await response.json().catch(() => null)
+        if (payload?.error) {
+          setSubmitError(payload.error)
+        }
         setSubmitStatus('error')
       }
     } catch (error) {
       console.error('Error submitting contact form:', error)
+      setSubmitError('No se pudo conectar con el servidor.')
       setSubmitStatus('error')
     } finally {
       setIsSubmitting(false)
@@ -55,16 +65,18 @@ export function ContactForm({ className }: ContactFormProps) {
       <h3 className="text-xl font-semibold mb-4">Contáctanos</h3>
       
       {submitStatus === 'success' && (
-        <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-xl flex items-center space-x-2">
-          <CheckCircle className="w-5 h-5 text-green-500" />
-          <span className="text-green-400 text-sm">¡Mensaje enviado exitosamente!</span>
+        <div className="mb-4 p-3 bg-green-500/20 border border-green-500/18 rounded-xl flex items-center space-x-2">
+          <CheckCircle className={`w-5 h-5 ${isLight ? 'text-green-700' : 'text-green-500'}`} />
+          <span className={`text-sm ${isLight ? 'text-green-800' : 'text-green-400'}`}>¡Mensaje enviado exitosamente!</span>
         </div>
       )}
 
       {submitStatus === 'error' && (
-        <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl flex items-center space-x-2">
-          <AlertCircle className="w-5 h-5 text-red-500" />
-          <span className="text-red-400 text-sm">Error al enviar el mensaje. Inténtalo de nuevo.</span>
+        <div className="mb-4 p-3 bg-red-500/20 border border-red-500/18 rounded-xl flex items-center space-x-2">
+          <AlertCircle className={`w-5 h-5 ${isLight ? 'text-red-700' : 'text-red-500'}`} />
+          <span className={`text-sm ${isLight ? 'text-red-800' : 'text-red-400'}`}>
+            {submitError || 'Error al enviar el mensaje. Inténtalo de nuevo.'}
+          </span>
         </div>
       )}
 
@@ -76,7 +88,7 @@ export function ContactForm({ className }: ContactFormProps) {
             value={formData.name}
             onChange={(e) => handleInputChange('name', e.target.value)}
             required
-            className="w-full p-3 glass border border-white/15 rounded-xl focus-ring smooth-transition"
+            className="w-full p-3 glass border border-white/8 rounded-xl focus-ring smooth-transition"
             placeholder="Tu nombre completo"
           />
         </div>
@@ -88,7 +100,7 @@ export function ContactForm({ className }: ContactFormProps) {
             value={formData.email}
             onChange={(e) => handleInputChange('email', e.target.value)}
             required
-            className="w-full p-3 glass border border-white/15 rounded-xl focus-ring smooth-transition"
+            className="w-full p-3 glass border border-white/8 rounded-xl focus-ring smooth-transition"
             placeholder="tu@email.com"
           />
         </div>
@@ -100,7 +112,7 @@ export function ContactForm({ className }: ContactFormProps) {
             onChange={(e) => handleInputChange('message', e.target.value)}
             required
             rows={4}
-            className="w-full p-3 glass border border-white/15 rounded-xl focus-ring smooth-transition resize-none"
+            className="w-full p-3 glass border border-white/8 rounded-xl focus-ring smooth-transition resize-none"
             placeholder="Cuéntanos cómo podemos ayudarte..."
           />
         </div>
