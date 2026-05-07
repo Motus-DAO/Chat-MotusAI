@@ -1,21 +1,22 @@
-import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { updateSession } from '@/utils/supabase/middleware'
 
 // Public routes that don't require registration
-const publicRoutes = ['/registro', '/', '/docs', '/contact', '/terms', '/privacy']
+const publicRoutes = ['/', '/contact', '/terms', '/privacy']
 const apiRoutes = ['/api']
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const supabaseResponse = await updateSession(request)
 
   // Allow public routes
   if (publicRoutes.some(route => pathname === route || pathname.startsWith(route))) {
-    return NextResponse.next()
+    return supabaseResponse
   }
 
   // Allow API routes
   if (apiRoutes.some(route => pathname.startsWith(route))) {
-    return NextResponse.next()
+    return supabaseResponse
   }
 
   // Allow static files
@@ -24,13 +25,13 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/static') ||
     pathname.includes('.')
   ) {
-    return NextResponse.next()
+    return supabaseResponse
   }
 
   // For all other routes, we'll check registration status client-side
   // The actual redirect will be handled by client-side components
   // This middleware just allows the request through
-  return NextResponse.next()
+  return supabaseResponse
 }
 
 export const config = {

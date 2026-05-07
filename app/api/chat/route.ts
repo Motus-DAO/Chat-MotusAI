@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Use Venice as an OpenAI-compatible backend for chat
+const rawVeniceApiKey =
+  process.env.VENICE_INFERENCE_KEY || process.env.VENICE_API_KEY;
+const veniceApiKey = rawVeniceApiKey
+  ? rawVeniceApiKey.startsWith("VENICE_INFERENCE_KEY_")
+    ? rawVeniceApiKey
+    : `VENICE_INFERENCE_KEY_${rawVeniceApiKey}`
+  : undefined;
+const veniceModel = process.env.VENICE_MODEL || "zai-org-glm-5";
+
+function createVeniceClient() {
+  return new OpenAI({
+    apiKey: veniceApiKey,
+    baseURL: "https://api.venice.ai/api/v1",
+  });
+}
 
 const SYSTEM_PROMPT = `Eres el Asistente Oficial de MotusDAO.
 Capacidades:
@@ -61,11 +76,15 @@ function wantsSupervisorMode(text: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 401 });
+  if (!veniceApiKey) {
+    return NextResponse.json(
+      { error: "Missing VENICE_INFERENCE_KEY or VENICE_API_KEY" },
+      { status: 401 },
+    );
   }
 
   try {
+    const client = createVeniceClient();
     const body = await req.json();
     const userMessages = (body?.messages || []) as {role:"user"|"assistant"|"system", content:string}[];
     const contextSnippets = (body?.contextSnippets || []) as string[];
@@ -99,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     if (wantsSupervisorMode(userText)) {
       const r = await client.chat.completions.create({
-        model: process.env.OPENAI_MODEL || "gpt-4o",
+        model: veniceModel,
         messages: input,
         response_format: SUPERVISOR_SCHEMA,
         temperature: 0.7,
@@ -126,7 +145,7 @@ export async function POST(req: NextRequest) {
 
     // Q&A normal
     const r = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o",
+      model: veniceModel,
       messages: input,
       temperature: 0.7,
       max_tokens: 800
@@ -136,13 +155,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ mode: "qa", text: answer });
 
   } catch (e: unknown) {
-    console.error('OpenAI API Error:', e);
-    
-    // Handle specific OpenAI errors
+    console.error("Venice API Error:", e);
+    // Handle specific API errors
     if (e instanceof Error) {
       if (e.message.includes('API key')) {
         return NextResponse.json(
-          { error: 'OpenAI API key not configured' },
+          { error: 'Venice API key not configured' },
           { status: 401 }
         );
       }
@@ -154,6 +172,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ error: (e as Error)?.message || "OpenAI error" }, { status: 500 });
+    return NextResponse.json({ error: (e as Error)?.message || "Venice API error" }, { status: 500 });
   }
 }

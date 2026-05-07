@@ -38,8 +38,7 @@ export function Footer() {
                   </GradientText>
                 </div>
                 <p className="text-muted-foreground leading-relaxed">
-                  Plataforma integral de salud mental que combina tecnología blockchain, 
-                  inteligencia artificial y atención profesional para tu bienestar.
+                  Chat clínico experimental de MotusDAO para exploración y aprendizaje en salud mental con IA.
                 </p>
               </div>
 
@@ -91,38 +90,17 @@ export function Footer() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-3">
                   <Link 
-                    href="/" 
-                    className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group"
-                  >
-                    <span>Inicio</span>
-                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                  <Link 
                     href="/motusai" 
                     className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group"
                   >
-                    <span>MotusAI</span>
+                    <span>Chat Clinico</span>
                     <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                   <Link 
-                    href="/psicoterapia" 
+                    href="/perfil" 
                     className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group"
                   >
-                    <span>Psicoterapia</span>
-                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                  <Link 
-                    href="/academia" 
-                    className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group"
-                  >
-                    <span>Academia</span>
-                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                  <Link 
-                    href="/docs" 
-                    className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group"
-                  >
-                    <span>Documentación</span>
+                    <span>Perfil</span>
                     <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                 </div>

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type UserRole = 'usuario' | 'psm' | 'admin'
+export type UserRole = 'usuario' | 'psm'
 export type MatrixColor = 'green' | 'red' | 'orange' | 'blue' | 'pink'
 
 interface UIState {
@@ -23,7 +23,7 @@ interface UIState {
   matrixColor: MatrixColor
   setMatrixColor: (color: MatrixColor) => void
   
-  // Note: Authentication state is now handled by Privy directly
+  // Note: Authentication state is now handled by WaaP directly
   // No need for mock auth state in the store
 }
 
@@ -35,7 +35,7 @@ export const useUIStore = create<UIState>()(
       setRole: (role) => set({ role }),
       
       // Sidebar state
-      sidebarOpen: true,
+      sidebarOpen: false,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       
@@ -50,7 +50,7 @@ export const useUIStore = create<UIState>()(
       matrixColor: 'green',
       setMatrixColor: (color) => set({ matrixColor: color }),
       
-      // Authentication is now handled by Privy - no mock state needed
+      // Authentication is now handled by WaaP - no mock state needed
     }),
     {
       name: 'motusdao-ui-storage',
@@ -66,28 +66,15 @@ export const useUIStore = create<UIState>()(
 
 // Navigation items based on role
 export const getNavigationItems = (role: UserRole) => {
-  const baseItems = [
-    { name: 'Inicio', href: '/', icon: 'Home' },
-    { name: 'MotusAI', href: '/motusai', icon: 'Bot' },
-    { name: 'Academia', href: '/academia', icon: 'GraduationCap' },
-    { name: 'Pagos', href: '/pagos', icon: 'CreditCard' },
-    { name: 'Videochat', href: '/videochat', icon: 'Video' },
-    { name: 'Bitácora', href: '/bitacora', icon: 'BookOpen' },
+  const coreItems = [
+    { name: 'Chat Clínico', href: '/motusai', icon: 'Bot' },
     { name: 'Perfil', href: '/perfil', icon: 'User' },
   ]
 
-  if (role === 'usuario') {
-    return [
-      ...baseItems.slice(0, 2),
-      { name: 'Psicoterapia', href: '/psicoterapia', icon: 'Heart' },
-      ...baseItems.slice(2),
-    ]
-  } else {
-    return [
-      ...baseItems.slice(0, 2),
-      { name: 'Mis usuarios', href: '/mis-usuarios', icon: 'Users' },
-      { name: 'Supervisión', href: '/supervision', icon: 'Eye' },
-      ...baseItems.slice(2),
-    ]
+  // Keep role support in state, but share one simple navigation for both.
+  if (role === 'usuario' || role === 'psm') {
+    return coreItems
   }
+
+  return coreItems
 }

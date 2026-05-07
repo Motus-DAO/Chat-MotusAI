@@ -8,9 +8,7 @@ import {
   ArrowRight, 
   Home, 
   Bot, 
-  GraduationCap,
-  Heart,
-  Users
+  Heart
 } from 'lucide-react'
 import { GlassCard } from '@/components/ui/GlassCard'
 import { CTAButton } from '@/components/ui/CTAButton'
@@ -65,10 +63,10 @@ export function StepExito({ onComplete }: StepExitoProps) {
         title: '🎉 ¡Listo! Tu registro ha sido completado',
         subtitle: 'Bienvenido a MotusDAO. Tu cuenta de usuario está lista para usar.',
         features: [
-          { icon: Heart, label: 'Acceso a psicoterapia', description: 'Conecta con profesionales' },
+          { icon: Heart, label: 'Perfil clínico activo', description: 'Tus datos están listos para personalización' },
           { icon: Bot, label: 'MotusAI personalizado', description: 'Asistente de IA especializado' },
-          { icon: GraduationCap, label: 'Cursos de bienestar', description: 'Recursos para tu salud mental' },
-          { icon: Home, label: 'Bitácora privada', description: 'Diario personal seguro' }
+          { icon: Bot, label: 'Registro personalizado', description: 'Perfil clinico y preferencias' },
+          { icon: Home, label: 'Panel personal', description: 'Gestiona tu perfil y configuracion' }
         ],
         primaryAction: {
           label: 'Ir a MotusAI',
@@ -84,11 +82,11 @@ export function StepExito({ onComplete }: StepExitoProps) {
     } else {
       return {
         title: '🎉 ¡Bienvenido/a a la red profesional de MotusDAO!',
-        subtitle: 'Tu cuenta profesional está lista. Accede a todas las herramientas para profesionales.',
+        subtitle: 'Tu cuenta profesional está lista para usar el flujo de perfil y chat clínico.',
         features: [
-          { icon: Users, label: 'Gestión de pacientes', description: 'Administra tu cartera de pacientes' },
-          { icon: Heart, label: 'Supervisión de casos', description: 'Revisa y supervisa terapias' },
-          { icon: GraduationCap, label: 'Certificaciones', description: 'Accede a cursos y certificaciones' },
+          { icon: Heart, label: 'Perfil profesional', description: 'Completa y ajusta tu información clínica' },
+          { icon: Bot, label: 'Chat clínico', description: 'Usa MotusAI en modo profesional' },
+          { icon: Bot, label: 'Onboarding simplificado', description: 'Sin paneles administrativos adicionales' },
           { icon: Home, label: 'Red profesional', description: 'Conecta con otros profesionales' }
         ],
         primaryAction: {
@@ -97,9 +95,9 @@ export function StepExito({ onComplete }: StepExitoProps) {
           icon: Home
         },
         secondaryAction: {
-          label: 'Academia',
-          path: '/academia',
-          icon: GraduationCap
+          label: 'Ir a perfil',
+          path: '/perfil',
+          icon: Home
         }
       }
     }
@@ -257,11 +255,11 @@ export function StepExito({ onComplete }: StepExitoProps) {
               ¿Necesitas ayuda o tienes preguntas?
             </p>
             <div className="flex justify-center space-x-4 text-sm">
-              <a 
-                href="/docs" 
+              <a
+                href="/perfil"
                 className="text-mauve-400 hover:text-mauve-300 transition-colors"
               >
-                Documentación
+                Perfil
               </a>
               <span className="text-gray-500">•</span>
               <a 

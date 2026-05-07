@@ -2,7 +2,7 @@
 
 import { useUIStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { 
+import {
   Menu, 
   Sun, 
   Moon, 
@@ -17,14 +17,12 @@ import {
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useWaaP, useWaaPWallets } from '@/lib/contexts/WaaPProvider'
-import { createPortal } from 'react-dom'
 import { useSmartAccount } from '@/lib/contexts/ZeroDevSmartWalletProvider'
 import { identifyEmbeddedWallet } from '@/lib/wallet-utils'
+import { LiquidGlass, LiquidGlassFilter } from '@/components/ui/liquid-glass'
 
 export function Topbar() {
   const { 
-    role, 
-    setRole, 
     sidebarOpen, 
     setSidebarOpen, 
     theme, 
@@ -45,86 +43,46 @@ export function Topbar() {
   // Get email from user
   const userEmail = user?.email?.address || user?.google?.email || 'No disponible'
   
-  const [showRoleDropdown, setShowRoleDropdown] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [showThemeDropdown, setShowThemeDropdown] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 })
-  const roleButtonRef = useRef<HTMLButtonElement>(null)
+  const userSyncRef = useRef<string | null>(null)
 
-  const handleRoleChange = (newRole: 'usuario' | 'psm' | 'admin') => {
-    setRole(newRole)
-    setShowRoleDropdown(false)
-    // Si cambia a admin, redirigir al dashboard admin
-    if (newRole === 'admin') {
-      window.location.href = '/admin'
-    }
-  }
-
-  const handleRoleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setShowRoleDropdown(false)
-    }
-  }
-
-  // Calculate dropdown position
+  // Sync WAAP identity into app DB for chat/profile use.
   useEffect(() => {
-    if (showRoleDropdown && roleButtonRef.current) {
-      const rect = roleButtonRef.current.getBoundingClientRect()
-      setDropdownPosition({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right
-      })
-    }
-  }, [showRoleDropdown])
-
-  // Sync role from database when user is authenticated
-  // This ensures the toggle matches the actual account type created during registration
-  useEffect(() => {
-    const syncUserRole = async () => {
+    const syncUser = async () => {
       if (!ready || !authenticated || !user) return
 
       const userEmail = user?.email?.address || user?.google?.email
-      const privyId = user?.id
+      const waapId = user?.id
+      const activeAddress = smartAccountAddress || eoaAddress
 
-      if (!userEmail && !privyId) return
+      if (!userEmail || !activeAddress) return
+
+      const syncKey = `${userEmail}:${activeAddress}`
+      if (userSyncRef.current === syncKey) return
 
       try {
-        const params = new URLSearchParams()
-        if (privyId) params.append('privyId', privyId)
-        if (userEmail) params.append('email', userEmail)
+        const response = await fetch('/api/auth/sync-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: userEmail,
+            eoaAddress: eoaAddress || activeAddress,
+            smartWalletAddress: smartAccountAddress || undefined,
+            waapId,
+          }),
+        })
 
-        const response = await fetch(`/api/profile?${params.toString()}`)
-        
-        if (response.ok) {
-          const data = await response.json()
-          if (data.user?.role) {
-            const dbRole = data.user.role as 'usuario' | 'psm' | 'admin'
-            // Only update if the role is different from current store role
-            // This syncs the toggle with the actual account type from registration
-            if (dbRole !== role) {
-              console.log('🔄 Syncing user role from database:', {
-                currentRole: role,
-                databaseRole: dbRole,
-                updating: true
-              })
-              setRole(dbRole)
-            }
-          }
-        } else if (response.status === 404) {
-          // User not registered yet, keep current role
-          console.log('ℹ️ User not registered yet, keeping current role')
-        }
+        if (!response.ok) return
+        userSyncRef.current = syncKey
       } catch (err) {
-        console.error('Error syncing user role:', err)
-        // Don't show error to user, just log it
+        console.error('Error syncing user record:', err)
       }
     }
 
-    // Only sync when authentication state changes, not on every render
-    syncUserRole()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, authenticated, user?.id]) // Only depend on auth state, not on role to avoid loops
+    void syncUser()
+  }, [ready, authenticated, user, eoaAddress, smartAccountAddress])
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'matrix') => {
     setTheme(newTheme)
@@ -157,83 +115,21 @@ export function Topbar() {
   }
 
   return (
-    <header className="fixed top-4 left-0 right-0 z-40 mx-2 sm:mx-4 lg:ml-64 lg:mr-4 glass-navbar max-w-full">
-      <div className="flex h-12 sm:h-16 items-center justify-between px-3 sm:px-6">
+    <header className="fixed top-4 left-0 right-0 z-40 mx-2 sm:mx-4 max-w-full">
+      <LiquidGlassFilter />
+      <LiquidGlass className="border border-white/10" contentClassName="flex h-12 sm:h-16 items-center justify-between px-3 sm:px-6">
         {/* Left side */}
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden p-2 hover:bg-white/10 rounded-xl transition-colors"
+            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+            aria-label="Abrir menú"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* Role Selector */}
-          <div className="relative">
-            <button
-              ref={roleButtonRef}
-              onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-              className="relative min-w-[132px] rounded-2xl border border-white/15 bg-white/10 backdrop-blur-xl px-4 h-10 flex items-center gap-2 hover:bg-white/15 transition-colors focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50"
-              aria-label="Selector de rol"
-            >
-              <span className="text-xs sm:text-sm font-medium capitalize">{role}</span>
-              <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-            </button>
-
-            {showRoleDropdown && createPortal(
-              <>
-                {/* Portal backdrop */}
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowRoleDropdown(false)}
-                />
-                {/* Dropdown content */}
-                <div className="fixed z-50 min-w-[132px] rounded-2xl border border-white/15 bg-black/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.35)] p-1"
-                     style={{
-                       top: `${dropdownPosition.top}px`,
-                       right: `${dropdownPosition.right}px`
-                     }}
-                     onKeyDown={handleRoleKeyDown}>
-                  <div className="space-y-1">
-                    <button
-                      onClick={() => handleRoleChange('usuario')}
-                      className={cn(
-                        "w-full rounded-xl px-3 py-2 text-sm text-foreground/90 hover:bg-white/10 hover:text-foreground cursor-pointer focus:bg-white/15 focus:outline-none transition-colors",
-                        role === 'usuario' 
-                          ? "bg-white/15 text-foreground" 
-                          : "text-foreground/90"
-                      )}
-                    >
-                      Usuario
-                    </button>
-                    <button
-                      onClick={() => handleRoleChange('psm')}
-                      className={cn(
-                        "w-full rounded-xl px-3 py-2 text-sm text-foreground/90 hover:bg-white/10 hover:text-foreground cursor-pointer focus:bg-white/15 focus:outline-none transition-colors",
-                        role === 'psm' 
-                          ? "bg-white/15 text-foreground" 
-                          : "text-foreground/90"
-                      )}
-                    >
-                      PSM
-                    </button>
-                    <button
-                      onClick={() => handleRoleChange('admin')}
-                      className={cn(
-                        "w-full rounded-xl px-3 py-2 text-sm text-foreground/90 hover:bg-white/10 hover:text-foreground cursor-pointer focus:bg-white/15 focus:outline-none transition-colors flex items-center space-x-2",
-                        role === 'admin' 
-                          ? "bg-white/15 text-foreground" 
-                          : "text-foreground/90"
-                      )}
-                    >
-                      <Shield className="w-3 h-3" />
-                      <span>Admin</span>
-                    </button>
-                  </div>
-                </div>
-              </>,
-              document.body
-            )}
+          <div className="hidden rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-xs text-muted-foreground sm:block">
+            MotusAI Chat
           </div>
         </div>
 
@@ -256,8 +152,7 @@ export function Topbar() {
           </button>
 
             {showThemeDropdown && (
-              <div className="absolute top-full right-0 mt-2 w-20 glass-strong border border-white/10 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-50">
-                <div className="p-2 space-y-1">
+              <LiquidGlass className="absolute top-full right-0 mt-2 w-20 rounded-xl border border-white/10 z-50" contentClassName="p-2 space-y-1">
                   <button
                     onClick={() => handleThemeChange('light')}
                     className={cn(
@@ -294,8 +189,7 @@ export function Topbar() {
                   >
                     <Zap className="w-5 h-5 text-green-500" />
                   </button>
-                </div>
-              </div>
+              </LiquidGlass>
             )}
           </div>
 
@@ -322,8 +216,7 @@ export function Topbar() {
               </button>
 
               {showUserDropdown && (
-                <div className="absolute top-full right-0 mt-2 w-80 glass-strong border border-white/10 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-50">
-                  <div className="p-3 space-y-3">
+                <LiquidGlass className="absolute top-full right-0 mt-2 w-80 rounded-xl border border-white/10 z-50" contentClassName="p-3 space-y-3">
                     {/* Email */}
                     <div className="px-3 py-2 text-sm border-b border-white/10">
                       <div className="flex items-center justify-between mb-1">
@@ -418,8 +311,7 @@ export function Topbar() {
                       <LogOut className="w-4 h-4" />
                       <span>Desconectar</span>
                     </button>
-                  </div>
-                </div>
+                </LiquidGlass>
               )}
             </div>
           ) : (
@@ -438,24 +330,18 @@ export function Topbar() {
             </button>
           )}
         </div>
-      </div>
+      </LiquidGlass>
 
       {/* Click outside handlers */}
-      {showRoleDropdown && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setShowRoleDropdown(false)}
-        />
-      )}
       {showUserDropdown && (
         <div 
-          className="fixed inset-0 z-40" 
+          className="fixed inset-0 z-10" 
           onClick={() => setShowUserDropdown(false)}
         />
       )}
       {showThemeDropdown && (
         <div 
-          className="fixed inset-0 z-40" 
+          className="fixed inset-0 z-10" 
           onClick={() => setShowThemeDropdown(false)}
         />
       )}

@@ -17,26 +17,26 @@ export async function POST(request: NextRequest) {
     const profile = await prisma.profile.upsert({
       where: { userId },
       update: {
-        nombre,
-        apellido,
-        telefono,
+        nombre: nombre || '',
+        apellido: apellido || '',
+        telefono: telefono || '',
         fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
-        ciudad,
-        pais,
+        ciudad: ciudad || '',
+        pais: pais || '',
         avatarUrl,
-        bio,
+        bio: bio || '',
         language: language || 'es'
       },
       create: {
         userId,
-        nombre,
-        apellido,
-        telefono,
-        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : new Date(),
-        ciudad,
-        pais,
+        nombre: nombre || '',
+        apellido: apellido || '',
+        telefono: telefono || '',
+        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : new Date('2000-01-01'),
+        ciudad: ciudad || '',
+        pais: pais || '',
         avatarUrl,
-        bio,
+        bio: bio || '',
         language: language || 'es'
       }
     })
@@ -142,14 +142,14 @@ export async function PUT(request: NextRequest) {
     const profile = await prisma.profile.update({
       where: { userId },
       data: {
-        nombre,
-        apellido,
-        telefono,
+        nombre: nombre || '',
+        apellido: apellido || '',
+        telefono: telefono || '',
         fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
-        ciudad,
-        pais,
+        ciudad: ciudad || '',
+        pais: pais || '',
         avatarUrl,
-        bio,
+        bio: bio || '',
         language: language || 'es'
       }
     })

@@ -2,6 +2,28 @@
 
 Una plataforma integral de salud mental que combina tecnología blockchain, inteligencia artificial y atención profesional para el bienestar mental.
 
+## Arquitectura Funnel (kept vs removed)
+
+Este fork está optimizado para un solo producto: **chat clínico personalizado con IA**.
+
+- **Kept (core funnel):**
+  - `Home` orientado a conversión (`/`)
+  - `Registro` y `Onboarding` (`/registro`, `/onboarding`)
+  - `Perfil` esencial de usuario/psm + wallet (`/perfil`)
+  - `MotusAI Chat` (`/motusai`)
+  - Integraciones clave: **WaaP (Human Tech)**, **Celo**, **Faucet** (`/api/faucet`), **DB/Prisma**
+  - Roles de producto: `usuario` y `psm` (sin UX de admin)
+
+- **Removed (fuera de alcance para MVP funnel):**
+  - Rutas multiproducto: academia, bitácora, videochat, pagos, docs, psicoterapia, supervision, mis-usuarios, motus-names
+  - APIs de matching/sesiones/admin (y sus pantallas frontend asociadas)
+  - Componentes de admin y pagos heredados que ya no participan del flujo principal
+
+- **Principio de diseño actual:**
+  - Menor complejidad operativa
+  - Menos superficies de error
+  - Camino más corto: **login → onboarding/registro → chat → perfil**
+
 ## 🚀 Características
 
 - **MotusAI**: Asistente de IA especializado en salud mental
