@@ -1,30 +1,21 @@
 'use client'
 
-import Image from 'next/image'
 import { GlassCard } from '@/components/ui/GlassCard'
 import { Section } from '@/components/ui/Section'
 import { GradientText } from '@/components/ui/GradientText'
 import { CTAButton } from '@/components/ui/CTAButton'
 import { MatrixColorSelector } from '@/components/profile/MatrixColorSelector'
-import { User, Save, Edit, Camera, Shield, Wallet, Settings, Loader, AlertCircle } from 'lucide-react'
+import { User, Save, Edit, Wallet, Settings, Loader, AlertCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useUIStore } from '@/lib/store'
 import { useWaaP, useWaaPWallets } from '@/lib/contexts/WaaPProvider'
-import { useSmartAccount } from '@/lib/contexts/ZeroDevSmartWalletProvider'
 import { getEOAAddress } from '@/lib/wallet-utils'
 import { useRouter } from 'next/navigation'
 
 interface ProfileData {
   nombre: string
-  apellido: string
   telefono: string
-  fechaNacimiento: string
-  ciudad: string
-  pais: string
-  bio?: string
-  language: string
-  avatarUrl?: string
 }
 
 interface UserData {
@@ -32,7 +23,6 @@ interface UserData {
   email: string
   role: string
   eoaAddress: string
-  smartWalletAddress?: string
 }
 
 export default function PerfilPage() {
@@ -40,7 +30,6 @@ export default function PerfilPage() {
   const { role, setMatrixColor } = useUIStore()
   const { authenticated, user, ready } = useWaaP()
   const { wallets } = useWaaPWallets()
-  const { smartAccountAddress } = useSmartAccount()
   const eoaAddress = getEOAAddress(wallets)
 
   const resolvedEmail = user?.email?.address || user?.google?.email || ''
@@ -50,19 +39,11 @@ export default function PerfilPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [hasExistingProfile, setHasExistingProfile] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [profileData, setProfileData] = useState<ProfileData>({
     nombre: '',
-    apellido: '',
     telefono: '',
-    fechaNacimiento: '',
-    ciudad: '',
-    pais: '',
-    bio: '',
-    language: 'es',
-    avatarUrl: '',
   })
   const [userData, setUserData] = useState<UserData | null>(null)
 
@@ -86,7 +67,6 @@ export default function PerfilPage() {
           body: JSON.stringify({
             email: userEmail,
             eoaAddress,
-            smartWalletAddress: smartAccountAddress || undefined,
             waapId,
           }),
         })
@@ -114,14 +94,7 @@ export default function PerfilPage() {
           setHasExistingProfile(true)
           setProfileData({
             nombre: data.profile.nombre || '',
-            apellido: data.profile.apellido || '',
             telefono: data.profile.telefono || '',
-            fechaNacimiento: data.profile.fechaNacimiento ? new Date(data.profile.fechaNacimiento).toISOString().split('T')[0] : '',
-            ciudad: data.profile.ciudad || '',
-            pais: data.profile.pais || '',
-            bio: data.profile.bio || '',
-            language: data.profile.language || 'es',
-            avatarUrl: data.profile.avatarUrl || '',
           })
         }
 
@@ -137,7 +110,7 @@ export default function PerfilPage() {
     }
 
     fetchProfile()
-  }, [ready, authenticated, resolvedEmail, waapId, eoaAddress, smartAccountAddress])
+  }, [ready, authenticated, resolvedEmail, waapId, eoaAddress])
 
   const handleSave = async () => {
     if (!userData?.id) {
@@ -156,7 +129,15 @@ export default function PerfilPage() {
         },
         body: JSON.stringify({
           userId: userData.id,
-          ...profileData,
+          nombre: profileData.nombre,
+          apellido: '',
+          telefono: profileData.telefono,
+          fechaNacimiento: '2000-01-01',
+          ciudad: '',
+          pais: '',
+          bio: '',
+          language: 'es',
+          avatarUrl: null,
         }),
       })
 
@@ -184,71 +165,7 @@ export default function PerfilPage() {
     setMatrixColor(color)
   }
 
-  const handleAvatarClick = () => {
-    if (isEditing && userData?.id) {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = 'image/jpeg,image/jpg,image/png,image/webp,image/gif'
-      input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0]
-        if (file && userData?.id) {
-          await handleAvatarUpload(file)
-        }
-      }
-      input.click()
-    }
-  }
-
-  const handleAvatarUpload = async (file: File) => {
-    if (!userData?.id) {
-      setError('No se puede subir: ID de usuario no disponible')
-      return
-    }
-
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
-    if (!validTypes.includes(file.type)) {
-      setError('Tipo de archivo inválido. Solo se permiten JPEG, PNG, WebP y GIF.')
-      return
-    }
-
-    const maxSize = 2 * 1024 * 1024
-    if (file.size > maxSize) {
-      setError('El archivo es demasiado grande. El tamaño máximo es 2MB.')
-      return
-    }
-
-    setIsUploadingAvatar(true)
-    setError(null)
-
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('userId', userData.id)
-
-      const response = await fetch('/api/profile/upload-avatar', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al subir la imagen')
-      }
-
-      const result = await response.json()
-      setProfileData((prev) => ({
-        ...prev,
-        avatarUrl: result.avatarUrl,
-      }))
-    } catch (err) {
-      console.error('Error uploading avatar:', err)
-      setError(err instanceof Error ? err.message : 'Error al subir la imagen')
-    } finally {
-      setIsUploadingAvatar(false)
-    }
-  }
-
-  const displayName = profileData.nombre && profileData.apellido ? `${profileData.nombre} ${profileData.apellido}` : 'Usuario MotusDAO'
+  const displayName = profileData.nombre || 'Usuario MotusDAO'
 
   if (!ready || !authenticated) {
     return (
@@ -309,29 +226,9 @@ export default function PerfilPage() {
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.2 }}>
                 <GlassCard className="p-6 text-center">
                   <div className="relative mb-6">
-                    <div
-                      className={`w-32 h-32 bg-gradient-mauve rounded-full flex items-center justify-center mx-auto overflow-hidden ${
-                        isEditing ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''
-                      } ${isUploadingAvatar ? 'opacity-50' : ''}`}
-                      onClick={handleAvatarClick}
-                    >
-                      {isUploadingAvatar ? (
-                        <Loader className="w-8 h-8 text-white animate-spin" />
-                      ) : profileData.avatarUrl ? (
-                        <Image src={profileData.avatarUrl} alt={displayName} width={128} height={128} className="w-32 h-32 rounded-full object-cover" />
-                      ) : (
-                        <User className="w-16 h-16 text-white" />
-                      )}
+                    <div className="w-32 h-32 bg-gradient-mauve rounded-full flex items-center justify-center mx-auto">
+                      <User className="w-16 h-16 text-white" />
                     </div>
-                    {isEditing && !isUploadingAvatar && (
-                      <button
-                        onClick={handleAvatarClick}
-                        className="absolute bottom-2 right-2 w-10 h-10 bg-mauve-500 rounded-full flex items-center justify-center hover:bg-mauve-600 transition-colors shadow-lg"
-                        title="Cambiar foto de perfil"
-                      >
-                        <Camera className="w-5 h-5 text-white" />
-                      </button>
-                    )}
                   </div>
 
                   <h2 className="text-2xl font-bold mb-2">{displayName}</h2>
@@ -357,21 +254,6 @@ export default function PerfilPage() {
                         </div>
                       )}
 
-                      {(userData?.smartWalletAddress || smartAccountAddress) ? (
-                        <div className="p-3 glass-card rounded-lg border border-green-500/30">
-                          <div className="flex items-center justify-center space-x-2 mb-1">
-                            <Shield className="w-4 h-4 text-green-500" />
-                            <span className="text-xs text-muted-foreground">Smart Wallet (ZeroDev)</span>
-                          </div>
-                          <p className="text-xs font-mono text-center text-muted-foreground mt-1 break-all">
-                            {userData?.smartWalletAddress || smartAccountAddress}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="p-3 glass-card rounded-lg border border-yellow-500/30">
-                          <p className="text-xs text-yellow-500 text-center">Smart wallet no disponible</p>
-                        </div>
-                      )}
                     </div>
                   )}
                 </GlassCard>
@@ -404,57 +286,20 @@ export default function PerfilPage() {
                   </div>
 
                   <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleSave() }}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Nombre</label>
-                        <input type="text" value={profileData.nombre} onChange={(e) => handleInputChange('nombre', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Apellido</label>
-                        <input type="text" value={profileData.apellido} onChange={(e) => handleInputChange('apellido', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Nombre</label>
+                      <input type="text" value={profileData.nombre} onChange={(e) => handleInputChange('nombre', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Teléfono</label>
-                        <input type="tel" value={profileData.telefono} onChange={(e) => handleInputChange('telefono', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Fecha de Nacimiento</label>
-                        <input type="date" value={profileData.fechaNacimiento} onChange={(e) => handleInputChange('fechaNacimiento', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Ciudad</label>
-                        <input type="text" value={profileData.ciudad} onChange={(e) => handleInputChange('ciudad', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">País</label>
-                        <input type="text" value={profileData.pais} onChange={(e) => handleInputChange('pais', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Teléfono</label>
+                      <input type="tel" value={profileData.telefono} onChange={(e) => handleInputChange('telefono', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium mb-2">Email</label>
                       <input type="email" value={userData?.email || userEmail} disabled className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
                       <p className="text-xs text-muted-foreground mt-1">Email gestionado por WaaP</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Biografía</label>
-                      <textarea value={profileData.bio || ''} onChange={(e) => handleInputChange('bio', e.target.value)} disabled={!isEditing} rows={4} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50 resize-none" />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Idioma Preferido</label>
-                      <select value={profileData.language} onChange={(e) => handleInputChange('language', e.target.value)} disabled={!isEditing} className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50">
-                        <option value="es">Español</option>
-                        <option value="en">English</option>
-                        <option value="pt">Português</option>
-                      </select>
                     </div>
 
                     <div className="pt-4 border-t border-white/10">

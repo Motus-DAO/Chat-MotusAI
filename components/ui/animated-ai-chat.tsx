@@ -3,16 +3,11 @@
 import * as React from "react";
 import { useEffect, useRef, useCallback, useTransition, useState } from "react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 import {
-  ImageIcon,
-  Figma,
-  MonitorIcon,
-  Paperclip,
+  FileText,
   SendIcon,
-  XIcon,
   LoaderIcon,
-  Sparkles,
-  Command,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUIStore } from "@/lib/store";
@@ -63,13 +58,6 @@ function useAutoResizeTextarea({
   }, [adjustHeight]);
 
   return { textareaRef, adjustHeight };
-}
-
-interface CommandSuggestion {
-  icon: React.ReactNode;
-  label: string;
-  description: string;
-  prefix: string;
 }
 
 interface TextareaProps
@@ -128,64 +116,16 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   const [messages, setMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
   >([]);
-  const [attachments, setAttachments] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [, startTransition] = useTransition();
-  const [activeSuggestion, setActiveSuggestion] = useState<number>(-1);
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [recentCommand, setRecentCommand] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 60,
     maxHeight: 200,
   });
   const [inputFocused, setInputFocused] = useState(false);
-  const commandPaletteRef = useRef<HTMLDivElement>(null);
-
-  const commandSuggestions: CommandSuggestion[] = [
-    {
-      icon: <ImageIcon className="h-4 w-4" />,
-      label: "Clone UI",
-      description: "Generate a UI from a screenshot",
-      prefix: "/clone",
-    },
-    {
-      icon: <Figma className="h-4 w-4" />,
-      label: "Import Figma",
-      description: "Import a design from Figma",
-      prefix: "/figma",
-    },
-    {
-      icon: <MonitorIcon className="h-4 w-4" />,
-      label: "Create Page",
-      description: "Generate a new web page",
-      prefix: "/page",
-    },
-    {
-      icon: <Sparkles className="h-4 w-4" />,
-      label: "Improve",
-      description: "Improve existing UI design",
-      prefix: "/improve",
-    },
-  ];
-
-  useEffect(() => {
-    if (value.startsWith("/") && !value.includes(" ")) {
-      setShowCommandPalette(true);
-
-      const matchingSuggestionIndex = commandSuggestions.findIndex((cmd) =>
-        cmd.prefix.startsWith(value),
-      );
-
-      if (matchingSuggestionIndex >= 0) {
-        setActiveSuggestion(matchingSuggestionIndex);
-      } else {
-        setActiveSuggestion(-1);
-      }
-    } else {
-      setShowCommandPalette(false);
-    }
-  }, [value, commandSuggestions]);
+  const clinicalExample =
+    "Tengo un paciente que tiene ansiedad. El comenta que no se siente lo hombre, por lo que he decidio abordar este tema desde la teoria de genero y social, dandole herramientas de nuevas masculinidades y me enfocare en trabajar en su autoestima.";
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -195,26 +135,6 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
     window.addEventListener("mousemove", handleMouseMove);
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const commandButton = document.querySelector("[data-command-button]");
-
-      if (
-        commandPaletteRef.current &&
-        !commandPaletteRef.current.contains(target) &&
-        !commandButton?.contains(target)
-      ) {
-        setShowCommandPalette(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -282,32 +202,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (showCommandPalette) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setActiveSuggestion((prev) =>
-          prev < commandSuggestions.length - 1 ? prev + 1 : 0,
-        );
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setActiveSuggestion((prev) =>
-          prev > 0 ? prev - 1 : commandSuggestions.length - 1,
-        );
-      } else if (e.key === "Tab" || e.key === "Enter") {
-        e.preventDefault();
-        if (activeSuggestion >= 0) {
-          const selectedCommand = commandSuggestions[activeSuggestion];
-          setValue(`${selectedCommand.prefix} `);
-          setShowCommandPalette(false);
-
-          setRecentCommand(selectedCommand.label);
-          setTimeout(() => setRecentCommand(null), 3500);
-        }
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        setShowCommandPalette(false);
-      }
-    } else if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (value.trim()) {
         handleSendMessage();
@@ -315,22 +210,9 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
     }
   };
 
-  const handleAttachFile = () => {
-    const mockFileName = `file-${Math.floor(Math.random() * 1000)}.pdf`;
-    setAttachments((prev) => [...prev, mockFileName]);
-  };
-
-  const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const selectCommandSuggestion = (index: number) => {
-    const selectedCommand = commandSuggestions[index];
-    setValue(`${selectedCommand.prefix} `);
-    setShowCommandPalette(false);
-
-    setRecentCommand(selectedCommand.label);
-    setTimeout(() => setRecentCommand(null), 2000);
+  const fillClinicalExample = () => {
+    setValue(clinicalExample);
+    requestAnimationFrame(() => adjustHeight());
   };
 
   return (
@@ -361,7 +243,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               className="inline-block"
             >
               <h1 className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 bg-clip-text pb-1 text-3xl font-medium tracking-tight text-transparent">
-                How can I help today?
+                ¿Cómo puedo ayudarte hoy?
               </h1>
               <motion.div
                 className="h-px bg-gradient-to-r from-violet-500/0 via-fuchsia-400/70 to-pink-500/0"
@@ -379,7 +261,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              Type a command or ask a question
+              Escribe tu consulta clínica
             </motion.p>
           </div>
 
@@ -436,49 +318,6 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
             animate={{ scale: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <AnimatePresence>
-              {showCommandPalette && (
-                <motion.div
-                  ref={commandPaletteRef}
-                  className="absolute bottom-full left-4 right-4 z-50 mb-2 overflow-hidden rounded-lg border border-white/10 bg-black/90 shadow-lg backdrop-blur-xl"
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <div className={cn("py-1", isLight ? "bg-white/95" : "bg-black/95")}>
-                    {commandSuggestions.map((suggestion, index) => (
-                      <motion.div
-                        key={suggestion.prefix}
-                        className={cn(
-                          "flex cursor-pointer items-center gap-2 px-3 py-2 text-xs transition-colors",
-                          activeSuggestion === index
-                            ? isLight
-                              ? "bg-slate-100 text-slate-900"
-                              : "bg-white/10 text-white"
-                            : isLight
-                              ? "text-slate-600 hover:bg-slate-100"
-                              : "text-white/70 hover:bg-white/5",
-                        )}
-                        onClick={() => selectCommandSuggestion(index)}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: index * 0.03 }}
-                      >
-                        <div className={cn("flex h-5 w-5 items-center justify-center", isLight ? "text-slate-500" : "text-white/60")}>
-                          {suggestion.icon}
-                        </div>
-                        <div className="font-medium">{suggestion.label}</div>
-                        <div className={cn("ml-1 text-xs", isLight ? "text-slate-400" : "text-white/40")}>
-                          {suggestion.prefix}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <div className="p-4">
               <Textarea
                 ref={textareaRef}
@@ -490,7 +329,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 onKeyDown={handleKeyDown}
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
-                placeholder="Ask zap a question..."
+                placeholder="Haz una consulta a Psychat..."
                 containerClassName="w-full"
                 className={cn(
                   "min-h-[60px] w-full resize-none bg-transparent px-4 py-3 text-sm",
@@ -504,35 +343,6 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               />
             </div>
 
-            <AnimatePresence>
-              {attachments.length > 0 && (
-                <motion.div
-                  className="flex flex-wrap gap-2 px-4 pb-3"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                >
-                  {attachments.map((file, index) => (
-                    <motion.div
-                      key={`${file}-${index}`}
-                      className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-1.5 text-xs text-white/70"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                    >
-                      <span>{file}</span>
-                      <button
-                        onClick={() => removeAttachment(index)}
-                        className={cn("transition-colors", isLight ? "text-slate-400 hover:text-slate-700" : "text-white/40 hover:text-white")}
-                      >
-                        <XIcon className="h-3 w-3" />
-                      </button>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <div
               className={cn(
                 "flex items-center justify-between gap-4 border-t p-4",
@@ -542,40 +352,17 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               <div className="flex items-center gap-3">
                 <motion.button
                   type="button"
-                  onClick={handleAttachFile}
+                  onClick={fillClinicalExample}
                   whileTap={{ scale: 0.94 }}
                   className={cn(
-                    "group relative rounded-lg p-2 transition-colors",
-                    isLight ? "text-slate-500 hover:text-slate-900" : "text-white/40 hover:text-white/90",
-                  )}
-                >
-                  <Paperclip className="h-4 w-4" />
-                  <motion.span
-                    className={cn(
-                      "absolute inset-0 rounded-lg opacity-0 transition-opacity group-hover:opacity-100",
-                      isLight ? "bg-slate-200/60" : "bg-white/[0.05]",
-                    )}
-                    layoutId="button-highlight"
-                  />
-                </motion.button>
-                <motion.button
-                  type="button"
-                  data-command-button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowCommandPalette((prev) => !prev);
-                  }}
-                  whileTap={{ scale: 0.94 }}
-                  className={cn(
-                    "group relative rounded-lg p-2 text-white/40 transition-colors hover:text-white/90",
+                    "group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
                     isLight
-                      ? "text-slate-500 hover:text-slate-900"
-                      : "text-white/40 hover:text-white/90",
-                    showCommandPalette &&
-                      (isLight ? "bg-slate-200/80 text-slate-900" : "bg-white/10 text-white/90"),
+                      ? "bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+                      : "bg-white/[0.03] text-white/70 hover:bg-white/[0.08] hover:text-white",
                   )}
                 >
-                  <Command className="h-4 w-4" />
+                  <FileText className="h-4 w-4" />
+                  <span>Caso clinico ejemplo</span>
                   <motion.span
                     className={cn(
                       "absolute inset-0 rounded-lg opacity-0 transition-opacity group-hover:opacity-100",
@@ -611,48 +398,31 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 <span>Send</span>
               </motion.button>
             </div>
+            <div
+              className={cn(
+                "border-t px-4 pb-4 pt-3 text-xs",
+                isLight ? "border-slate-300/70 text-slate-600" : "border-white/[0.05] text-white/60",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Image
+                  src="/venice-logo.svg"
+                  alt="Venice"
+                  width={14}
+                  height={14}
+                  className="rounded-sm"
+                />
+                <span className={cn("font-medium", isLight ? "text-slate-700" : "text-white/80")}>
+                  Powered by Venice
+                </span>
+              </div>
+              <p className="mt-1">
+                Venice prioriza privacidad y anonimato: no vincules información
+                sensible ni datos identificables de pacientes.
+              </p>
+            </div>
           </motion.div>
 
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {commandSuggestions.map((suggestion, index) => (
-              <motion.button
-                key={suggestion.prefix}
-                onClick={() => selectCommandSuggestion(index)}
-                className={cn(
-                  "group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all",
-                  isLight
-                    ? "bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200"
-                    : "bg-white/[0.02] text-white/60 hover:bg-white/[0.05] hover:text-white/90",
-                )}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                {suggestion.icon}
-                <span>{suggestion.label}</span>
-                <motion.div
-                  className={cn(
-                    "absolute inset-0 rounded-lg border",
-                    isLight ? "border-slate-200" : "border-white/[0.05]",
-                  )}
-                  initial={false}
-                  animate={{
-                    opacity: [0, 1],
-                    scale: [0.98, 1],
-                  }}
-                  transition={{
-                    duration: 0.3,
-                    ease: "easeOut",
-                  }}
-                />
-              </motion.button>
-            ))}
-          </div>
-          {recentCommand && (
-            <p className={cn("text-center text-xs", isLight ? "text-slate-500" : "text-white/40")}>
-              Last command: {recentCommand}
-            </p>
-          )}
         </motion.div>
       </div>
 

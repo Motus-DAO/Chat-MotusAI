@@ -6,10 +6,7 @@ import { GradientText } from '@/components/ui/GradientText'
 import { 
   Heart, 
   Mail, 
-  MapPin, 
-  Phone,
   Twitter,
-  Github,
   Linkedin,
   ArrowRight
 } from 'lucide-react'
@@ -47,32 +44,22 @@ export function Footer() {
                   <Mail className="w-5 h-5 text-mauve-500" />
                   <span className="text-sm">contact@motusdao.org</span>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <Phone className="w-5 h-5 text-mauve-500" />
-                  <span className="text-sm">+1 (555) 123-4567</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <MapPin className="w-5 h-5 text-mauve-500" />
-                  <span className="text-sm">Ciudad de México, México</span>
-                </div>
               </div>
 
               <div className="mt-6 pt-6 border-t border-white/10">
                 <div className="flex space-x-4">
                   <a
-                    href="#"
+                    href="https://x.com/MotusDAO"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-10 h-10 glass-card rounded-lg flex items-center justify-center hover:bg-mauve-500/20 transition-colors"
                   >
                     <Twitter className="w-5 h-5" />
                   </a>
                   <a
-                    href="#"
-                    className="w-10 h-10 glass-card rounded-lg flex items-center justify-center hover:bg-mauve-500/20 transition-colors"
-                  >
-                    <Github className="w-5 h-5" />
-                  </a>
-                  <a
-                    href="#"
+                    href="https://www.linkedin.com/in/motusdao/?originalSubdomain=mx"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-10 h-10 glass-card rounded-lg flex items-center justify-center hover:bg-mauve-500/20 transition-colors"
                   >
                     <Linkedin className="w-5 h-5" />

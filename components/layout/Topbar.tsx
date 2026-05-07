@@ -91,11 +91,11 @@ export function Topbar() {
   }
 
   const handleLogin = () => {
-    login()
+    void login()
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     setShowUserDropdown(false)
   }
 

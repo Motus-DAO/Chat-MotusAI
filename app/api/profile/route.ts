@@ -62,15 +62,15 @@ export async function GET(request: NextRequest) {
     const email = searchParams.get('email')
     const privyId = searchParams.get('privyId')
 
-    // Find user by userId, email, or privyId
+    // Find user by userId, email, or privyId.
+    // Keep this query resilient for environments where optional
+    // profile extension tables (patient/psm) are not yet provisioned.
     let user
     if (userId) {
       user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          profile: true,
-          patient: true,
-          psm: true
+          profile: true
         }
       })
     } else if (email || privyId) {
@@ -82,9 +82,7 @@ export async function GET(request: NextRequest) {
           ].filter(condition => Object.keys(condition).length > 0)
         },
         include: {
-          profile: true,
-          patient: true,
-          psm: true
+          profile: true
         }
       })
     }
@@ -114,8 +112,8 @@ export async function GET(request: NextRequest) {
         registrationCompleted: user.registrationCompleted,
         createdAt: user.createdAt
       },
-      patientProfile: user.patient,
-      psmProfile: user.psm
+      patientProfile: null,
+      psmProfile: null
     })
   } catch (error) {
     console.error('Error fetching profile:', error)

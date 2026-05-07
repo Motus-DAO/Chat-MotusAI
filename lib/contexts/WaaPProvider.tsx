@@ -80,6 +80,7 @@ const WaaPContext = createContext<WaaPContextType>({
 // Celo Mainnet chain ID for switching
 const CELO_CHAIN_ID = 42220
 const CELO_CHAIN_ID_HEX = '0xa4ec' // 42220 in hex
+const WAAP_AUTO_CONNECT_ENABLED = false
 
 // ============================================================================
 // WAAP PROVIDER COMPONENT
@@ -247,6 +248,9 @@ export function WaaPProvider({ children }: WaaPProviderProps) {
           },
           // Required for external wallet support (MetaMask, etc.)
           walletConnectProjectId: walletConnectProjectId || undefined,
+          // Isolate local development auth/session behavior from production.
+          // This helps avoid sticky localhost sessions when testing multiple users.
+          useStaging: process.env.NODE_ENV !== 'production',
         })
         console.log('[WAAP] ✅ WaaP SDK initialized')
 
@@ -260,8 +264,10 @@ export function WaaPProvider({ children }: WaaPProviderProps) {
           setIsWaaPReady(true)
           console.log('[WAAP] ✅ WaaP EIP-1193 provider available (window.waap)')
 
-          // Check for existing session (auto-connect)
-          await checkExistingSession(provider)
+          // Optional auto-connect: disabled by default to avoid sticky sessions across user switches.
+          if (WAAP_AUTO_CONNECT_ENABLED) {
+            await checkExistingSession(provider)
+          }
         } else {
           console.warn('[WAAP] window.waap not available after initialization')
         }
@@ -370,6 +376,7 @@ export function WaaPProvider({ children }: WaaPProviderProps) {
     try {
       const waap = waapProvider as {
         login: () => Promise<'waap' | 'injected' | 'walletconnect' | null>
+        logout: () => Promise<void>
         request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
         requestEmail: () => Promise<string>
       }
@@ -476,6 +483,22 @@ export function WaaPProvider({ children }: WaaPProviderProps) {
     setUser(null)
     setWallets([])
     localStorage.removeItem('waap_user')
+
+    // Best-effort cleanup of local persisted session artifacts.
+    if (typeof window !== 'undefined') {
+      for (const key of Object.keys(localStorage)) {
+        const lower = key.toLowerCase()
+        if (lower.includes('waap') || lower.includes('walletconnect') || lower.includes('reown')) {
+          localStorage.removeItem(key)
+        }
+      }
+      for (const key of Object.keys(sessionStorage)) {
+        const lower = key.toLowerCase()
+        if (lower.includes('waap') || lower.includes('walletconnect') || lower.includes('reown')) {
+          sessionStorage.removeItem(key)
+        }
+      }
+    }
     
     console.log('[WAAP] ✅ Logged out and state cleared')
   }, [waapProvider])

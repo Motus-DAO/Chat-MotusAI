@@ -31,7 +31,9 @@
     "mns:withdraw": "npx hardhat run scripts/mns/withdraw-funds.js --network celo",
     "attendance1155:deploy:celo": "npx hardhat run scripts/deploy-attendance-1155.js --network celo",
     "attendance1155:deploy:alfajores": "npx hardhat run scripts/deploy-attendance-1155.js --network alfajores",
-    "attendance1155:enable-session:celo": "npx hardhat run scripts/enable-attendance-session.js --network celo"
+    "attendance1155:enable-session:celo": "npx hardhat run scripts/enable-attendance-session.js --network celo",
+    "attendance1155:update-metadata:celo": "tsx scripts/update-attendance-metadata.ts",
+    "attendance1155:set-uri:celo": "tsx scripts/set-attendance-uri.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

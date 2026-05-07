@@ -14,20 +14,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'email and eoaAddress are required' }, { status: 400 })
     }
 
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email }, { eoaAddress }],
-      },
-    })
+    const [byPrivyId, byEmail, byEoa] = await Promise.all([
+      waapId
+        ? prisma.user.findUnique({
+            where: { privyId: waapId },
+          })
+        : Promise.resolve(null),
+      prisma.user.findUnique({
+        where: { email },
+      }),
+      prisma.user.findUnique({
+        where: { eoaAddress },
+      }),
+    ])
 
-    const user = existingUser
+    // Resolve identity using stable precedence to avoid cross-account merges:
+    // 1) WaaP ID, 2) email, 3) current EOA.
+    const targetUser = byPrivyId || byEmail || byEoa
+
+    const user = targetUser
       ? await prisma.user.update({
-          where: { id: existingUser.id },
+          where: { id: targetUser.id },
           data: {
             email,
             eoaAddress,
             smartWalletAddress,
-            privyId: waapId || existingUser.privyId,
+            privyId: waapId || targetUser.privyId,
             registrationCompleted: true,
           },
         })
