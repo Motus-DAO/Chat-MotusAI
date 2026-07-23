@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import {
+  isKnowledgeRagEnabled,
+  retrieveMotusContext,
+  toRagSources,
+} from "@/lib/motus-knowledge";
 
 // Use Venice as an OpenAI-compatible backend for chat
 const rawVeniceApiKey =
@@ -87,7 +92,7 @@ export async function POST(req: NextRequest) {
     const client = createVeniceClient();
     const body = await req.json();
     const userMessages = (body?.messages || []) as {role:"user"|"assistant"|"system", content:string}[];
-    const contextSnippets = (body?.contextSnippets || []) as string[];
+    const clientSnippets = (body?.contextSnippets || []) as string[];
 
     if (!userMessages || !Array.isArray(userMessages)) {
       return NextResponse.json(
@@ -101,6 +106,28 @@ export async function POST(req: NextRequest) {
       { role: "system", content: SYSTEM_PROMPT },
     ];
 
+    // Tomar el último mensaje de usuario para rutear modo
+    const lastUser = userMessages.slice().reverse().find(m => m.role === "user");
+    const userText = lastUser?.content || "";
+
+    let ragSources: ReturnType<typeof toRagSources> = [];
+    let contextSnippets = [...clientSnippets];
+
+    if (isKnowledgeRagEnabled() && userText && !wantsSupervisorMode(userText)) {
+      try {
+        const retrieved = await retrieveMotusContext(userText);
+        if (retrieved.snippets.length) {
+          contextSnippets = retrieved.snippets;
+          ragSources = toRagSources(retrieved.sources);
+        }
+      } catch (ragError) {
+        console.error(
+          "[chat] RAG retrieval failed, continuing without context:",
+          ragError,
+        );
+      }
+    }
+
     if (contextSnippets.length) {
       input.push({ 
         role: "assistant", 
@@ -108,9 +135,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Tomar el último mensaje de usuario para rutear modo
-    const lastUser = userMessages.slice().reverse().find(m => m.role === "user");
-    const userText = lastUser?.content || "";
     // Agregar mensajes de usuario con tipos correctos
     userMessages.forEach(msg => {
       input.push({ role: msg.role as "system" | "assistant" | "user", content: msg.content });
@@ -140,7 +164,7 @@ export async function POST(req: NextRequest) {
         }; 
       }
 
-      return NextResponse.json({ mode: "supervisor", ...json });
+      return NextResponse.json({ mode: "supervisor", ...json, ragSources });
     }
 
     // Q&A normal
@@ -152,7 +176,12 @@ export async function POST(req: NextRequest) {
     });
 
     const answer = r.choices[0]?.message?.content?.trim() || "";
-    return NextResponse.json({ mode: "qa", text: answer });
+    return NextResponse.json({
+      mode: "qa",
+      text: answer,
+      ragSources,
+      ragEnabled: isKnowledgeRagEnabled(),
+    });
 
   } catch (e: unknown) {
     console.error("Venice API Error:", e);

@@ -30,7 +30,7 @@ export default function PerfilPage() {
   const { role, setMatrixColor } = useUIStore()
   const { authenticated, user, ready } = useWaaP()
   const { wallets } = useWaaPWallets()
-  const eoaAddress = getEOAAddress(wallets)
+  const eoaAddress = getEOAAddress(wallets) || user?.wallet?.address || null
 
   const resolvedEmail = user?.email?.address || user?.google?.email || ''
   const userEmail = resolvedEmail || 'No disponible'
@@ -53,9 +53,36 @@ export default function PerfilPage() {
     }
   }, [ready, authenticated, router])
 
+  // Avoid infinite "Cargando perfil..." if wallet never hydrates after Google login.
+  useEffect(() => {
+    if (!ready || !authenticated || eoaAddress) return
+    const t = window.setTimeout(() => {
+      setIsLoading((loading) => {
+        if (!loading) return loading
+        setError(
+          'Tu sesión WaaP está activa, pero la wallet aún no está lista. Recarga la página o vuelve a iniciar sesión.',
+        )
+        return false
+      })
+    }, 8000)
+    return () => window.clearTimeout(t)
+  }, [ready, authenticated, eoaAddress])
+
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!ready || !authenticated || !resolvedEmail || !eoaAddress) return
+      if (!ready || !authenticated) return
+
+      // Wait until we at least have a wallet or WaaP id; don't spin forever.
+      if (!eoaAddress && !waapId) {
+        setIsLoading(false)
+        setError('No se pudo leer la wallet de WaaP. Cierra sesión e inicia de nuevo.')
+        return
+      }
+
+      if (!eoaAddress) {
+        // Authenticated but wallets not hydrated yet — keep spinner briefly.
+        return
+      }
 
       setIsLoading(true)
       setError(null)
@@ -65,23 +92,35 @@ export default function PerfilPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email: userEmail,
+            email: resolvedEmail || undefined,
             eoaAddress,
             waapId,
           }),
         })
-        const syncData = syncResponse.ok ? await syncResponse.json() : null
+
+        if (!syncResponse.ok) {
+          const syncErr = await syncResponse.json().catch(() => ({}))
+          throw new Error(
+            (syncErr as { error?: string }).error ||
+              'No se pudo sincronizar tu cuenta WaaP',
+          )
+        }
+
+        const syncData = await syncResponse.json()
 
         const params = new URLSearchParams()
         if (waapId) params.append('privyId', waapId)
         if (resolvedEmail) params.append('email', resolvedEmail)
+        if (syncData?.user?.id) params.append('userId', syncData.user.id)
 
         const response = await fetch(`/api/profile?${params.toString()}`)
 
         if (!response.ok) {
           if (response.status === 404) {
             setUserData(syncData?.user || null)
-            setError('Aún no tienes perfil completo. Agrega tu nombre y foto para comenzar.')
+            setError(
+              'Aún no tienes perfil completo. Agrega tu nombre para comenzar.',
+            )
             setIsLoading(false)
             return
           }
@@ -100,6 +139,8 @@ export default function PerfilPage() {
 
         if (data.user) {
           setUserData(data.user)
+        } else if (syncData?.user) {
+          setUserData(syncData.user)
         }
       } catch (err) {
         console.error('Error fetching profile:', err)
@@ -109,7 +150,7 @@ export default function PerfilPage() {
       }
     }
 
-    fetchProfile()
+    void fetchProfile()
   }, [ready, authenticated, resolvedEmail, waapId, eoaAddress])
 
   const handleSave = async () => {
