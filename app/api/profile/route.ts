@@ -1,16 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+
+const PLACEHOLDER_EMAIL_SUFFIX = '@users.motusdao.local'
+
+function isPlaceholderEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.toLowerCase().endsWith(PLACEHOLDER_EMAIL_SUFFIX))
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+async function maybeUpdateUserEmail(userId: string, emailRaw: unknown) {
+  if (typeof emailRaw !== 'string') return null
+  const email = emailRaw.trim().toLowerCase()
+  if (!email) return null
+  if (!isValidEmail(email)) {
+    throw new Error('EMAIL_INVALID')
+  }
+
+  const current = await prisma.user.findUnique({ where: { id: userId } })
+  if (!current) throw new Error('USER_NOT_FOUND')
+
+  // Only allow replacing placeholder emails, or keeping the same email.
+  if (
+    current.email === email ||
+    isPlaceholderEmail(current.email) ||
+    !current.email
+  ) {
+    const taken = await prisma.user.findUnique({ where: { email } })
+    if (taken && taken.id !== userId) {
+      throw new Error('EMAIL_TAKEN')
+    }
+    return prisma.user.update({
+      where: { id: userId },
+      data: { email },
+    })
+  }
+
+  // OAuth-backed email: ignore client attempts to change it.
+  return current
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, nombre, apellido, telefono, fechaNacimiento, ciudad, pais, avatarUrl, bio, language } = body
+    const {
+      userId,
+      nombre,
+      apellido,
+      telefono,
+      fechaNacimiento,
+      ciudad,
+      pais,
+      avatarUrl,
+      bio,
+      language,
+      email,
+    } = body
 
     if (!userId) {
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
       )
+    }
+
+    let user = null
+    try {
+      user = await maybeUpdateUserEmail(userId, email)
+    } catch (e) {
+      if (e instanceof Error && e.message === 'EMAIL_INVALID') {
+        return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+      }
+      if (e instanceof Error && e.message === 'EMAIL_TAKEN') {
+        return NextResponse.json(
+          { error: 'Ese email ya está registrado en otra cuenta' },
+          { status: 409 },
+        )
+      }
+      throw e
     }
 
     // Create or update profile
@@ -41,13 +111,36 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    const freshUser =
+      user ||
+      (await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          eoaAddress: true,
+          smartWalletAddress: true,
+        },
+      }))
+
     return NextResponse.json({
       success: true,
       message: 'Profile updated successfully',
-      profile
+      profile,
+      user: freshUser,
     })
   } catch (error) {
     console.error('Error updating profile:', error)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return NextResponse.json(
+        { error: 'Ese email ya está registrado en otra cuenta' },
+        { status: 409 },
+      )
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -127,13 +220,41 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, nombre, apellido, telefono, fechaNacimiento, ciudad, pais, avatarUrl, bio, language } = body
+    const {
+      userId,
+      nombre,
+      apellido,
+      telefono,
+      fechaNacimiento,
+      ciudad,
+      pais,
+      avatarUrl,
+      bio,
+      language,
+      email,
+    } = body
 
     if (!userId) {
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
       )
+    }
+
+    let user = null
+    try {
+      user = await maybeUpdateUserEmail(userId, email)
+    } catch (e) {
+      if (e instanceof Error && e.message === 'EMAIL_INVALID') {
+        return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+      }
+      if (e instanceof Error && e.message === 'EMAIL_TAKEN') {
+        return NextResponse.json(
+          { error: 'Ese email ya está registrado en otra cuenta' },
+          { status: 409 },
+        )
+      }
+      throw e
     }
 
     // Update profile
@@ -152,13 +273,36 @@ export async function PUT(request: NextRequest) {
       }
     })
 
+    const freshUser =
+      user ||
+      (await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          eoaAddress: true,
+          smartWalletAddress: true,
+        },
+      }))
+
     return NextResponse.json({
       success: true,
       message: 'Profile updated successfully',
-      profile
+      profile,
+      user: freshUser,
     })
   } catch (error) {
     console.error('Error updating profile:', error)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return NextResponse.json(
+        { error: 'Ese email ya está registrado en otra cuenta' },
+        { status: 409 },
+      )
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

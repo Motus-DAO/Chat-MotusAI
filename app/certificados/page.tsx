@@ -1,12 +1,29 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Award, CheckCircle2, ChevronDown, Coins, Copy, Loader2, ScrollText, Wallet } from 'lucide-react'
+import {
+  Award,
+  CheckCircle2,
+  ChevronDown,
+  Coins,
+  Copy,
+  Loader2,
+  ScrollText,
+  Wallet,
+} from 'lucide-react'
 import { CTAButton } from '@/components/ui/CTAButton'
 import { GlassCard } from '@/components/ui/GlassCard'
 import { GradientText } from '@/components/ui/GradientText'
+import { CertificateNftCard } from '@/components/certificates/CertificateNftCard'
 import { useWaaP, useWaaPWallets } from '@/lib/contexts/WaaPProvider'
 import { getEOAAddress } from '@/lib/wallet-utils'
+import { DEFAULT_ATTENDANCE_SESSION_ID } from '@/lib/certificates'
+import {
+  loadCertificates,
+  saveCertificate,
+  upsertCertificateFromChain,
+  type StoredCertificate,
+} from '@/lib/certificate-storage'
 
 type FaucetResponse = {
   success?: boolean
@@ -24,6 +41,8 @@ type MintResponse = {
   sessionId?: number
   recipient?: string
   alreadyMinted?: boolean
+  imageUrl?: string
+  label?: string
   error?: string
 }
 
@@ -39,33 +58,49 @@ export default function CertificadosPage() {
   const [copied, setCopied] = useState(false)
   const [faucetStatus, setFaucetStatus] = useState<FaucetResponse | null>(null)
   const [mintStatus, setMintStatus] = useState<MintResponse | null>(null)
+  const [certificates, setCertificates] = useState<StoredCertificate[]>([])
 
   useEffect(() => {
     const checkMintStatus = async () => {
       if (!authenticated || !connectedAddress) {
         setMintStatus(null)
+        setCertificates([])
         return
       }
 
       setIsCheckingMintStatus(true)
       try {
+        let local = loadCertificates(connectedAddress)
+
         const response = await fetch(
-          `/api/certificados/mint?address=${encodeURIComponent(connectedAddress)}`,
+          `/api/certificados/mint?address=${encodeURIComponent(connectedAddress)}&sessionId=${DEFAULT_ATTENDANCE_SESSION_ID}`,
         )
         const payload = (await response.json()) as MintResponse
+
         if (payload.alreadyMinted) {
+          local = upsertCertificateFromChain(
+            connectedAddress,
+            payload.sessionId ?? DEFAULT_ATTENDANCE_SESSION_ID,
+            {
+              label: payload.label || 'MasterClass MotusDAO',
+              source: 'masterclass',
+            },
+          )
           setMintStatus({
-            success: false,
+            success: true,
             alreadyMinted: true,
-            sessionId: payload.sessionId,
+            sessionId: payload.sessionId ?? DEFAULT_ATTENDANCE_SESSION_ID,
             recipient: payload.recipient,
-            error: 'Esta wallet ya tiene certificado para esta sesión.',
+            imageUrl: payload.imageUrl,
+            label: payload.label || 'MasterClass MotusDAO',
           })
         } else {
           setMintStatus(null)
         }
+
+        setCertificates(local)
       } catch {
-        // Non-blocking: user can still try minting manually.
+        setCertificates(loadCertificates(connectedAddress))
       } finally {
         setIsCheckingMintStatus(false)
       }
@@ -113,17 +148,45 @@ export default function CertificadosPage() {
       const response = await fetch('/api/certificados/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: connectedAddress }),
+        body: JSON.stringify({
+          address: connectedAddress,
+          sessionId: DEFAULT_ATTENDANCE_SESSION_ID,
+          label: 'MasterClass MotusDAO',
+        }),
       })
 
       const payload = (await response.json()) as MintResponse
-      setMintStatus(payload)
+
+      if (payload.alreadyMinted || payload.success) {
+        const sessionId = payload.sessionId ?? DEFAULT_ATTENDANCE_SESSION_ID
+        const next = saveCertificate(connectedAddress, {
+          sessionId,
+          recipient: connectedAddress,
+          mintTxHash: payload.mintTxHash,
+          faucetTxHash: payload.faucetTxHash,
+          mintedAt: Date.now(),
+          label: payload.label || 'MasterClass MotusDAO',
+          source: 'masterclass',
+        })
+        setCertificates(next)
+        setMintStatus({
+          ...payload,
+          success: true,
+          alreadyMinted: Boolean(payload.alreadyMinted || payload.success),
+        })
+      } else {
+        setMintStatus(payload)
+      }
     } catch {
       setMintStatus({ error: 'No se pudo mintear tu certificado. Intenta de nuevo.' })
     } finally {
       setIsMinting(false)
     }
   }
+
+  const hasDefaultCert = certificates.some(
+    (c) => c.sessionId === DEFAULT_ATTENDANCE_SESSION_ID,
+  )
 
   return (
     <div className="min-h-screen bg-background px-4 py-10 md:px-6">
@@ -136,7 +199,8 @@ export default function CertificadosPage() {
             Certificados
           </GradientText>
           <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            Conecta tu wallet y solicita gas para cubrir fees en tus interacciones onchain.
+            Tus NFTs de asistencia y de sesiones MotusAI. También puedes finalizar
+            una sesión en el chat para mintear un certificado nuevo.
           </p>
         </div>
 
@@ -164,11 +228,36 @@ export default function CertificadosPage() {
             )}
           </div>
 
+          {certificates.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Tus certificados NFT</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {certificates.map((cert) => (
+                  <CertificateNftCard
+                    key={cert.sessionId}
+                    sessionId={cert.sessionId}
+                    mintTxHash={cert.mintTxHash}
+                    label={cert.label}
+                    compact
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-white/10 p-4">
-            <p className="mb-3 text-sm text-muted-foreground">Certificado de asistencia (NFT)</p>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Certificado MasterClass (NFT)
+            </p>
             <CTAButton
               onClick={() => void handleMintCertificate()}
-              disabled={!authenticated || !connectedAddress || isMinting || isCheckingMintStatus || mintStatus?.alreadyMinted}
+              disabled={
+                !authenticated ||
+                !connectedAddress ||
+                isMinting ||
+                isCheckingMintStatus ||
+                hasDefaultCert
+              }
             >
               {isMinting ? (
                 <>
@@ -183,42 +272,29 @@ export default function CertificadosPage() {
               ) : (
                 <>
                   <ScrollText className="mr-2 h-4 w-4" />
-                  {mintStatus?.alreadyMinted ? 'Certificado ya minteado' : 'Consigue tu certificado'}
+                  {hasDefaultCert
+                    ? 'MasterClass ya minteado'
+                    : 'Consigue tu certificado MasterClass'}
                 </>
               )}
             </CTAButton>
 
-            {mintStatus?.success && (
-              <div className="mt-4 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm">
-                <div className="mb-2 flex items-center gap-2 text-green-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Gas + certificado procesados correctamente</span>
-                </div>
-                <p className="text-muted-foreground">Session ID: {mintStatus.sessionId}</p>
+            {mintStatus?.success && mintStatus.sessionId && !hasDefaultCert && (
+              <div className="mt-4">
+                <CertificateNftCard
+                  sessionId={mintStatus.sessionId}
+                  mintTxHash={mintStatus.mintTxHash}
+                  label={mintStatus.label}
+                />
                 {mintStatus.amount && (
-                  <p className="text-muted-foreground">Gas enviado: {mintStatus.amount} CELO</p>
-                )}
-                {mintStatus.faucetTxHash && (
-                  <p className="mt-1 break-all font-mono text-xs">
-                    Faucet Tx: {mintStatus.faucetTxHash}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Gas enviado: {mintStatus.amount} CELO
                   </p>
                 )}
-                {mintStatus.mintTxHash && (
-                  <p className="mt-1 break-all font-mono text-xs">
-                    Mint Tx: {mintStatus.mintTxHash}
-                  </p>
-                )}
-                <div className="mt-4 flex justify-center">
-                  <img
-                    src="/NFT%20.jpg"
-                    alt="Certificado MasterClass MotusDAO"
-                    className="w-full max-w-[260px] rounded-lg border border-white/10"
-                  />
-                </div>
               </div>
             )}
 
-            {mintStatus?.error && (
+            {mintStatus?.error && !mintStatus.alreadyMinted && (
               <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
                 {mintStatus.error}
                 {mintStatus.recipient && (
@@ -227,6 +303,13 @@ export default function CertificadosPage() {
                   </p>
                 )}
               </div>
+            )}
+
+            {hasDefaultCert && (
+              <p className="mt-3 flex items-center gap-2 text-xs text-green-400">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Tu NFT MasterClass está arriba en la galería.
+              </p>
             )}
           </div>
 
@@ -279,7 +362,9 @@ export default function CertificadosPage() {
                   <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
                     {faucetStatus.error}
                     {typeof faucetStatus.retryInMinutes === 'number' && (
-                      <span className="ml-1">Vuelve a intentar en {faucetStatus.retryInMinutes} minutos.</span>
+                      <span className="ml-1">
+                        Vuelve a intentar en {faucetStatus.retryInMinutes} minutos.
+                      </span>
                     )}
                   </div>
                 )}

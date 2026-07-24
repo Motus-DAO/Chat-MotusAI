@@ -5,17 +5,26 @@ import { Section } from '@/components/ui/Section'
 import { GradientText } from '@/components/ui/GradientText'
 import { CTAButton } from '@/components/ui/CTAButton'
 import { MatrixColorSelector } from '@/components/profile/MatrixColorSelector'
-import { User, Save, Edit, Wallet, Settings, Loader, AlertCircle } from 'lucide-react'
+import { User, Save, Edit, Wallet, Settings, Loader, AlertCircle, Award } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useUIStore } from '@/lib/store'
 import { useWaaP, useWaaPWallets } from '@/lib/contexts/WaaPProvider'
 import { getEOAAddress } from '@/lib/wallet-utils'
 import { useRouter } from 'next/navigation'
+import { CertificateNftCard } from '@/components/certificates/CertificateNftCard'
+import { DEFAULT_ATTENDANCE_SESSION_ID } from '@/lib/certificates'
+import {
+  loadCertificates,
+  upsertCertificateFromChain,
+  type StoredCertificate,
+} from '@/lib/certificate-storage'
+import Link from 'next/link'
 
 interface ProfileData {
   nombre: string
   telefono: string
+  email: string
 }
 
 interface UserData {
@@ -23,6 +32,12 @@ interface UserData {
   email: string
   role: string
   eoaAddress: string
+}
+
+const PLACEHOLDER_EMAIL_SUFFIX = '@users.motusdao.local'
+
+function isPlaceholderEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.toLowerCase().endsWith(PLACEHOLDER_EMAIL_SUFFIX))
 }
 
 export default function PerfilPage() {
@@ -44,14 +59,61 @@ export default function PerfilPage() {
   const [profileData, setProfileData] = useState<ProfileData>({
     nombre: '',
     telefono: '',
+    email: '',
   })
   const [userData, setUserData] = useState<UserData | null>(null)
+  const [certificates, setCertificates] = useState<StoredCertificate[]>([])
+
+  // MetaMask/wallet: no OAuth email → placeholder until the user sets a real one.
+  // Google/social: email comes from WaaP and stays locked.
+  const emailEditable =
+    !resolvedEmail &&
+    (!userData?.email || isPlaceholderEmail(userData.email))
 
   useEffect(() => {
     if (ready && !authenticated) {
       router.replace('/')
     }
   }, [ready, authenticated, router])
+
+  // Load minted attendance / MotusAI certificates for this wallet
+  useEffect(() => {
+    const loadNfts = async () => {
+      if (!ready || !authenticated || !eoaAddress) {
+        setCertificates([])
+        return
+      }
+
+      let local = loadCertificates(eoaAddress)
+      try {
+        const response = await fetch(
+          `/api/certificados/mint?address=${encodeURIComponent(eoaAddress)}&sessionId=${DEFAULT_ATTENDANCE_SESSION_ID}`,
+        )
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            alreadyMinted?: boolean
+            sessionId?: number
+            label?: string
+          }
+          if (payload.alreadyMinted) {
+            local = upsertCertificateFromChain(
+              eoaAddress,
+              payload.sessionId ?? DEFAULT_ATTENDANCE_SESSION_ID,
+              {
+                label: payload.label || 'MasterClass MotusDAO',
+                source: 'masterclass',
+              },
+            )
+          }
+        }
+      } catch {
+        // keep local
+      }
+      setCertificates(local)
+    }
+
+    void loadNfts()
+  }, [ready, authenticated, eoaAddress])
 
   // Avoid infinite "Cargando perfil..." if wallet never hydrates after Google login.
   useEffect(() => {
@@ -118,8 +180,15 @@ export default function PerfilPage() {
         if (!response.ok) {
           if (response.status === 404) {
             setUserData(syncData?.user || null)
+            setProfileData((prev) => ({
+              ...prev,
+              email:
+                isPlaceholderEmail(syncData?.user?.email)
+                  ? ''
+                  : syncData?.user?.email || resolvedEmail || '',
+            }))
             setError(
-              'Aún no tienes perfil completo. Agrega tu nombre para comenzar.',
+              'Aún no tienes perfil completo. Agrega tu nombre y email para comenzar.',
             )
             setIsLoading(false)
             return
@@ -131,16 +200,32 @@ export default function PerfilPage() {
 
         if (data.profile) {
           setHasExistingProfile(true)
+          const dbEmail = data.user?.email || syncData?.user?.email || ''
           setProfileData({
             nombre: data.profile.nombre || '',
             telefono: data.profile.telefono || '',
+            email: isPlaceholderEmail(dbEmail) ? '' : dbEmail || resolvedEmail || '',
           })
         }
 
         if (data.user) {
           setUserData(data.user)
+          if (!data.profile) {
+            setProfileData((prev) => ({
+              ...prev,
+              email: isPlaceholderEmail(data.user.email)
+                ? ''
+                : data.user.email || '',
+            }))
+          }
         } else if (syncData?.user) {
           setUserData(syncData.user)
+          setProfileData((prev) => ({
+            ...prev,
+            email: isPlaceholderEmail(syncData.user.email)
+              ? ''
+              : syncData.user.email || '',
+          }))
         }
       } catch (err) {
         console.error('Error fetching profile:', err)
@@ -157,6 +242,14 @@ export default function PerfilPage() {
     if (!userData?.id) {
       setError('No se puede guardar: ID de usuario no disponible')
       return
+    }
+
+    if (emailEditable) {
+      const email = profileData.email.trim()
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setError('Ingresa un email válido para tu cuenta.')
+        return
+      }
     }
 
     setIsSaving(true)
@@ -179,6 +272,9 @@ export default function PerfilPage() {
           bio: '',
           language: 'es',
           avatarUrl: null,
+          email: emailEditable
+            ? profileData.email.trim().toLowerCase()
+            : undefined,
         }),
       })
 
@@ -187,9 +283,29 @@ export default function PerfilPage() {
         throw new Error(errorData.error || 'Error al guardar el perfil')
       }
 
-      await response.json()
+      const saved = await response.json()
       setHasExistingProfile(true)
       setIsEditing(false)
+      if (saved.user) {
+        setUserData((prev) =>
+          prev
+            ? {
+                ...prev,
+                email: saved.user.email || prev.email,
+                eoaAddress: saved.user.eoaAddress || prev.eoaAddress,
+              }
+            : {
+                id: saved.user.id,
+                email: saved.user.email,
+                role: saved.user.role || role,
+                eoaAddress: saved.user.eoaAddress || eoaAddress || '',
+              },
+        )
+        setProfileData((prev) => ({
+          ...prev,
+          email: saved.user.email || prev.email,
+        }))
+      }
     } catch (err) {
       console.error('Error saving profile:', err)
       setError(err instanceof Error ? err.message : 'Error al guardar el perfil')
@@ -282,7 +398,12 @@ export default function PerfilPage() {
                           <User className="w-4 h-4 text-mauve-500" />
                           <span className="text-xs text-muted-foreground">Email</span>
                         </div>
-                        <p className="text-sm font-mono text-center break-all">{userData?.email || userEmail}</p>
+                        <p className="text-sm font-mono text-center break-all">
+                          {profileData.email ||
+                            (isPlaceholderEmail(userData?.email)
+                              ? 'Sin email — edita tu perfil'
+                              : userData?.email || userEmail)}
+                        </p>
                       </div>
 
                       {(userData?.eoaAddress || eoaAddress) && (
@@ -339,8 +460,29 @@ export default function PerfilPage() {
 
                     <div>
                       <label className="block text-sm font-medium mb-2">Email</label>
-                      <input type="email" value={userData?.email || userEmail} disabled className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50" />
-                      <p className="text-xs text-muted-foreground mt-1">Email gestionado por WaaP</p>
+                      <input
+                        type="email"
+                        value={
+                          emailEditable
+                            ? profileData.email
+                            : userData?.email || userEmail
+                        }
+                        onChange={(e) =>
+                          handleInputChange('email', e.target.value)
+                        }
+                        disabled={!isEditing || !emailEditable}
+                        placeholder={
+                          emailEditable
+                            ? 'tu@email.com'
+                            : undefined
+                        }
+                        className="w-full p-3 glass-card border border-white/10 rounded-lg disabled:opacity-50"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {emailEditable
+                          ? 'Login con wallet: añade tu email para contactarte.'
+                          : 'Email gestionado por WaaP (Google/social).'}
+                      </p>
                     </div>
 
                     <div className="pt-4 border-t border-white/10">
@@ -351,6 +493,39 @@ export default function PerfilPage() {
               </motion.div>
 
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.5 }} className="mt-8">
+                <GlassCard className="p-8">
+                  <h3 className="text-2xl font-bold mb-6 flex items-center">
+                    <Award className="w-6 h-6 mr-3 text-mauve-500" />
+                    Mis certificados NFT
+                  </h3>
+                  {certificates.length > 0 ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {certificates.map((cert) => (
+                        <CertificateNftCard
+                          key={cert.sessionId}
+                          sessionId={cert.sessionId}
+                          mintTxHash={cert.mintTxHash}
+                          label={cert.label}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Aún no tienes certificados minteados. Puedes reclamar el de
+                      MasterClass o finalizar una sesión en MotusAI.
+                    </p>
+                  )}
+                  <Link
+                    href="/certificados"
+                    className="mt-4 inline-flex text-sm text-mauve-400 underline-offset-2 hover:underline"
+                  >
+                    Ir a Certificados →
+                  </Link>
+                </GlassCard>
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.55 }} className="mt-8">
                 <GlassCard className="p-8">
                   <h3 className="text-2xl font-bold mb-6 flex items-center">
                     <Settings className="w-6 h-6 mr-3 text-mauve-500" />

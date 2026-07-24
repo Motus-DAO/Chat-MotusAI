@@ -340,29 +340,25 @@ body::after {
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
+/* Avril glass-nav-modal recipe + Hub-Psi rounded float */
 .glass-navbar {
-  backdrop-filter: saturate(175%) blur(30px);
-  -webkit-backdrop-filter: saturate(175%) blur(30px);
-  background: 
-    linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%),
-    rgba(6, 6, 10, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 1.5rem;
-  box-shadow: 
-    0 16px 38px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .dark .glass-navbar {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.02) 100%),
-    rgba(4, 4, 8, 0.84);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  /* Same translucent glass as Avril .glass-nav-modal */
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.56),
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    0 8px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .dark .glass-strong {
@@ -756,7 +752,8 @@ body::after {
 [data-theme="matrix"] .glass-strong,
 [data-theme="matrix"] .glass-navbar,
 [data-theme="matrix"] .glass-sidebar {
-  background: rgba(0, 0, 0, 0.8) !important;
+  background-color: rgba(0, 0, 0, 0.9) !important;
+  background-image: none !important;
   border: 1px solid var(--matrix-border) !important;
   border-radius: 0 !important;
   backdrop-filter: blur(10px);

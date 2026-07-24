@@ -16,11 +16,14 @@ import {
   BookOpen,
   Stethoscope,
   Trash2,
+  Award,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { marked } from "marked";
 import { useUIStore } from "@/lib/store";
-import { useWaaP } from "@/lib/contexts/WaaPProvider";
+import { useWaaP, useWaaPWallets } from "@/lib/contexts/WaaPProvider";
+import { getEOAAddress } from "@/lib/wallet-utils";
 import { RAG_SIMILARITY_FLOOR } from "@/lib/motusai-constants";
 import { extractPartialResponseField } from "@/lib/motusai-stream";
 import {
@@ -32,6 +35,10 @@ import {
   loadMotusThread,
   saveMotusThread,
 } from "@/lib/motusai-thread-storage";
+import { newMotusSessionId } from "@/lib/certificates";
+import { saveCertificate } from "@/lib/certificate-storage";
+import { CertificateNftCard } from "@/components/certificates/CertificateNftCard";
+import Link from "next/link";
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -178,6 +185,8 @@ interface AnimatedAIChatProps {
 export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   const { theme, role } = useUIStore();
   const { user, authenticated } = useWaaP();
+  const { wallets } = useWaaPWallets();
+  const eoaAddress = getEOAAddress(wallets);
   const waapId = user?.id ?? "";
   const isLight = theme === "light";
   const isPsm = role === "psm";
@@ -191,6 +200,12 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   const [hydrated, setHydrated] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [inputFocused, setInputFocused] = useState(false);
+  const [isEndingSession, setIsEndingSession] = useState(false);
+  const [endedCert, setEndedCert] = useState<{
+    sessionId: number;
+    mintTxHash?: string;
+    label: string;
+  } | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -305,8 +320,95 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
     setActiveRisk(null);
     setError(null);
     setRetryPayload(null);
+    setEndedCert(null);
     if (authenticated && waapId) {
       clearMotusThread(waapId, chatMode);
+    }
+  };
+
+  const endSessionAndMint = async () => {
+    if (isTyping || isEndingSession || messages.length === 0) return;
+    if (!authenticated || !eoaAddress) {
+      setError("Conecta tu wallet para mintear el certificado de esta sesión.");
+      return;
+    }
+
+    const hasUserTurn = messages.some((m) => m.role === "user");
+    if (!hasUserTurn) {
+      setError("Escribe al menos un mensaje antes de finalizar la sesión.");
+      return;
+    }
+
+    setIsEndingSession(true);
+    setError(null);
+    setEndedCert(null);
+
+    const sessionId = newMotusSessionId();
+    const label =
+      chatMode === "qa"
+        ? `MotusAI Preguntas · ${new Date().toLocaleDateString("es")}`
+        : `MotusAI Supervisión · ${new Date().toLocaleDateString("es")}`;
+
+    try {
+      const response = await fetch("/api/certificados/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: eoaAddress,
+          sessionId,
+          label,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        alreadyMinted?: boolean;
+        mintTxHash?: string;
+        sessionId?: number;
+        error?: string;
+        retryInMinutes?: number;
+      };
+
+      if (!response.ok && !payload.alreadyMinted) {
+        throw new Error(
+          payload.error ||
+            (typeof payload.retryInMinutes === "number"
+              ? `Espera ${payload.retryInMinutes} min antes de reclamar otro certificado.`
+              : "No se pudo mintear el certificado"),
+        );
+      }
+
+      const mintedSessionId = payload.sessionId ?? sessionId;
+      saveCertificate(eoaAddress, {
+        sessionId: mintedSessionId,
+        recipient: eoaAddress,
+        mintTxHash: payload.mintTxHash,
+        mintedAt: Date.now(),
+        label,
+        source: "motusai",
+      });
+
+      setEndedCert({
+        sessionId: mintedSessionId,
+        mintTxHash: payload.mintTxHash,
+        label,
+      });
+
+      abortRef.current?.abort();
+      setMessages([]);
+      setActiveRisk(null);
+      setRetryPayload(null);
+      setValue("");
+      adjustHeight(true);
+      if (waapId) clearMotusThread(waapId, chatMode);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo finalizar la sesión con certificado.",
+      );
+    } finally {
+      setIsEndingSession(false);
     }
   };
 
@@ -793,6 +895,41 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
             )}
           </AnimatePresence>
 
+          <AnimatePresence>
+            {endedCert && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="shrink-0 space-y-3"
+              >
+                <CertificateNftCard
+                  sessionId={endedCert.sessionId}
+                  mintTxHash={endedCert.mintTxHash}
+                  label={endedCert.label}
+                  compact
+                />
+                <p className="text-center text-xs text-muted-foreground">
+                  Sesión finalizada.{" "}
+                  <Link
+                    href="/certificados"
+                    className="text-violet-300 underline-offset-2 hover:underline"
+                  >
+                    Ver en Certificados
+                  </Link>{" "}
+                  o{" "}
+                  <Link
+                    href="/perfil"
+                    className="text-violet-300 underline-offset-2 hover:underline"
+                  >
+                    Perfil
+                  </Link>
+                  .
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div
             ref={messagesContainerRef}
             className={cn(
@@ -1002,7 +1139,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 <motion.button
                   type="button"
                   onClick={clearConversation}
-                  disabled={isTyping || messages.length === 0}
+                  disabled={isTyping || isEndingSession || messages.length === 0}
                   whileTap={{ scale: 0.94 }}
                   title="Nueva conversación"
                   className={cn(
@@ -1014,6 +1151,33 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 >
                   <Trash2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Nueva</span>
+                </motion.button>
+                <motion.button
+                  type="button"
+                  onClick={() => void endSessionAndMint()}
+                  disabled={
+                    isTyping ||
+                    isEndingSession ||
+                    messages.length === 0 ||
+                    !authenticated
+                  }
+                  whileTap={{ scale: 0.94 }}
+                  title="Finalizar sesión y mintear certificado NFT"
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors disabled:opacity-40",
+                    isLight
+                      ? "bg-violet-100 text-violet-800 hover:bg-violet-200"
+                      : "bg-violet-500/20 text-violet-200 hover:bg-violet-500/30",
+                  )}
+                >
+                  {isEndingSession ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Award className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {isEndingSession ? "Minteando…" : "Finalizar"}
+                  </span>
                 </motion.button>
               </div>
 
