@@ -35,7 +35,8 @@ export function Footer() {
                   </GradientText>
                 </div>
                 <p className="text-muted-foreground leading-relaxed">
-                  Chat clínico experimental de MotusDAO para exploración y aprendizaje en salud mental con IA.
+                  MotusAI: apoyo reflexivo para revisión de casos, razonamiento clínico y análisis
+                  estructurado. Experimental; no sustituye el juicio profesional.
                 </p>
               </div>
 
@@ -80,7 +81,7 @@ export function Footer() {
                     href="/motusai" 
                     className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group"
                   >
-                    <span>Chat Clinico</span>
+                    <span>MotusAI</span>
                     <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                   <Link 
@@ -117,7 +118,7 @@ export function Footer() {
                 Términos
               </Link>
               <Link href="/cookies" className="text-muted-foreground hover:text-foreground transition-colors">
-                Cookies
+                Cookies y almacenamiento
               </Link>
             </div>
           </div>

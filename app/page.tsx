@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import { GlassCard } from '@/components/ui/GlassCard'
@@ -31,14 +32,17 @@ export default function Home() {
       />
       <div className="relative z-10 mx-auto flex min-h-[70vh] max-w-3xl items-center justify-center">
         <GlassCard className="w-full p-8 text-center md:p-12">
-          <div className="mb-6 flex items-center justify-center">
+          <div className="mb-4 flex items-center justify-center">
             <Sparkles className="mr-3 h-8 w-8 text-mauve-500" />
             <GradientText as="h1" className="text-4xl font-bold md:text-6xl">
-              MotusAI Chat
+              MotusAI
             </GradientText>
           </div>
+          <p className="mb-6 text-sm font-medium tracking-wide text-mauve-300 md:text-base">
+            Supervisión lacaniana · Lógicamente matemática
+          </p>
           <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground md:text-xl">
-            Accede con WaaP (social o wallet) para entrar directo al chat clínico de MotusDAO.
+            Apoyo reflexivo y educativo para revisión de casos y razonamiento clínico.
           </p>
           <CTAButton
             size="lg"
@@ -49,11 +53,17 @@ export default function Home() {
             }}
             disabled={!ready}
           >
-            {ready ? 'Entrar al chat' : 'Cargando acceso...'}
+            {ready ? 'Entrar con WaaP' : 'Cargando acceso...'}
             <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
           </CTAButton>
           <p className="mt-4 text-xs text-muted-foreground">
-            Tu email y wallet se sincronizan automáticamente al iniciar sesión.
+            El acceso usa WaaP. Revisa cómo tratamos datos en Privacidad.
+          </p>
+          <p className="mt-6 text-xs text-muted-foreground/80">
+            No es diagnóstico, tratamiento, psicoterapia ni atención de emergencia.{' '}
+            <Link href="/terms" className="text-mauve-400 underline hover:text-mauve-300">
+              Términos
+            </Link>
           </p>
         </GlassCard>
       </div>

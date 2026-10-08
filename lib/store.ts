@@ -67,7 +67,7 @@ export const useUIStore = create<UIState>()(
 // Navigation items based on role
 export const getNavigationItems = (role: UserRole) => {
   const coreItems = [
-    { name: 'Chat Clínico', href: '/motusai', icon: 'Bot' },
+    { name: 'MotusAI (apoyo reflexivo)', href: '/motusai', icon: 'Bot' },
     { name: 'Perfil', href: '/perfil', icon: 'User' },
     { name: 'Certificados', href: '/certificados', icon: 'Award' },
   ]

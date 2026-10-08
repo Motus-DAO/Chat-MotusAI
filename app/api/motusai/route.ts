@@ -635,10 +635,9 @@ export async function POST(req: NextRequest) {
               !parsedResult.ok ||
               typeof parsedResult.data.response !== "string"
             ) {
-              console.error(
-                "MotusAI JSON parse failed. Raw prefix:",
-                raw.slice(0, 800),
-              );
+              console.error("MotusAI JSON parse failed.", {
+                responseLength: raw.length,
+              });
               errorKind = "parse";
               send({
                 type: "error",
@@ -764,7 +763,9 @@ export async function POST(req: NextRequest) {
 
     const parsedResult = parseMotusSupervisionJson(raw);
     if (!parsedResult.ok || typeof parsedResult.data.response !== "string") {
-      console.error("MotusAI JSON parse failed. Raw prefix:", raw.slice(0, 800));
+      console.error("MotusAI JSON parse failed.", {
+        responseLength: raw.length,
+      });
       recordMotusAiTelemetry({
         event: "motusai.turn",
         at: new Date().toISOString(),

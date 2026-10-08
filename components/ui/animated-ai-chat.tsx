@@ -12,7 +12,6 @@ import {
   RotateCcw,
   PhoneCall,
   AlertTriangle,
-  ClipboardList,
   BookOpen,
   Stethoscope,
   Trash2,
@@ -35,9 +34,12 @@ import {
   loadMotusThread,
   saveMotusThread,
 } from "@/lib/motusai-thread-storage";
+import { hasAnonymizationAck } from "@/lib/motusai-anon-ack";
 import { newMotusSessionId } from "@/lib/certificates";
 import { saveCertificate } from "@/lib/certificate-storage";
 import { CertificateNftCard } from "@/components/certificates/CertificateNftCard";
+import { AnonymizationGate } from "@/components/motusai/AnonymizationGate";
+import { LogicalQuadrantPanel } from "@/components/motusai/LogicalQuadrantPanel";
 import Link from "next/link";
 
 marked.setOptions({ breaks: true, gfm: true });
@@ -161,6 +163,11 @@ interface ChatMessage {
   clinicalNotes?: string[];
   riskLevel?: RiskLevel;
   streaming?: boolean;
+  detectedDemand?: string | null;
+  primarySignifier?: string | null;
+  secondarySignifier?: string | null;
+  logicalPosition?: string | null;
+  observedPattern?: string | null;
 }
 
 type RetryPayload = {
@@ -206,7 +213,12 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
     mintTxHash?: string;
     label: string;
   } | null>(null);
+  const [anonReady, setAnonReady] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setAnonReady(hasAnonymizationAck());
+  }, []);
   const abortRef = useRef<AbortController | null>(null);
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 60,
@@ -214,7 +226,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   });
 
   const clinicalExample =
-    "Tengo un paciente que tiene ansiedad. El comenta que no se siente lo hombre, por lo que he decidio abordar este tema desde la teoria de genero y social, dandole herramientas de nuevas masculinidades y me enfocare en trabajar en su autoestima.";
+    "Viñeta disociada: una persona adulta refiere ansiedad al hablar de expectativas de masculinidad. ¿Qué elementos del discurso conviene explorar en una revisión de caso?";
   const qaExample =
     "¿Qué es el Pase Motus Beta y qué incluye para PSM?";
 
@@ -441,8 +453,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(
-            (data as { error?: string }).error ||
-              "Error en el asistente clínico",
+            (data as { error?: string }).error || "Error en MotusAI",
           );
         }
 
@@ -495,6 +506,11 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               risk_level?: RiskLevel;
               clinical_notes?: string[];
               mode?: ChatMode;
+              detected_demand?: string | null;
+              primary_signifier?: string | null;
+              secondary_signifier?: string | null;
+              logical_position?: string | null;
+              observed_pattern?: string | null;
             };
             try {
               event = JSON.parse(jsonText);
@@ -538,6 +554,28 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                     (n) => typeof n === "string" && n.trim(),
                   )
                 : [];
+              const logicFields = {
+                detectedDemand:
+                  typeof event.detected_demand === "string"
+                    ? event.detected_demand
+                    : event.detected_demand ?? null,
+                primarySignifier:
+                  typeof event.primary_signifier === "string"
+                    ? event.primary_signifier
+                    : event.primary_signifier ?? null,
+                secondarySignifier:
+                  typeof event.secondary_signifier === "string"
+                    ? event.secondary_signifier
+                    : event.secondary_signifier ?? null,
+                logicalPosition:
+                  typeof event.logical_position === "string"
+                    ? event.logical_position
+                    : event.logical_position ?? null,
+                observedPattern:
+                  typeof event.observed_pattern === "string"
+                    ? event.observed_pattern
+                    : event.observed_pattern ?? null,
+              };
 
               setMessages((prev) =>
                 prev.map((m) =>
@@ -549,6 +587,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                         clinicalNotes,
                         riskLevel,
                         streaming: false,
+                        ...logicFields,
                       }
                     : m,
                 ),
@@ -570,7 +609,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               });
             } else if (event.type === "error") {
               throw new Error(
-                event.error || "Error en el asistente clínico",
+                event.error || "Error en MotusAI",
               );
             }
           }
@@ -592,7 +631,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
         const msg =
           err instanceof Error
             ? err.message
-            : "Error inesperado en el asistente clínico";
+            : "Error inesperado en MotusAI";
         setError(msg);
         setRetryPayload(payload);
         setMessages((prev) => prev.filter((m) => m.id !== assistantId));
@@ -679,9 +718,9 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
   };
 
   const humanMailHref = `mailto:${MOTUS_HUMAN_SUPPORT_MAIL}?subject=${encodeURIComponent(
-    "MotusAI — solicitar acompañamiento humano",
+    "MotusAI — contactar a MotusDAO",
   )}&body=${encodeURIComponent(
-    "Hola MotusDAO,\n\nNecesito hablar con una persona del equipo / un profesional.\n\nContexto (sin datos identificables de pacientes):\n",
+    "Hola MotusDAO,\n\nQuiero contactar al equipo.\n\nContexto (sin datos identificables de pacientes):\n",
   )}`;
 
   return (
@@ -715,7 +754,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               <h1 className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 bg-clip-text pb-1 text-2xl font-medium tracking-tight text-transparent sm:text-3xl">
                 {chatMode === "qa"
                   ? "¿Qué quieres saber de MotusDAO?"
-                  : "¿Cómo puedo ayudarte hoy?"}
+                  : "Revisión de casos"}
               </h1>
               <motion.div
                 className="h-px bg-gradient-to-r from-violet-500/0 via-fuchsia-400/70 to-pink-500/0"
@@ -737,7 +776,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
             >
               {chatMode === "qa"
                 ? "Respuestas con contexto verificado del knowledge Motus"
-                : "Consulta clínica o supervisión analítica"}
+                : "Apoyo reflexivo · razonamiento clínico · análisis estructurado"}
             </motion.p>
 
             <div
@@ -769,7 +808,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 )}
               >
                 <Stethoscope className="h-3.5 w-3.5" />
-                Supervisión clínica
+                Revisión de casos
               </button>
               <button
                 type="button"
@@ -795,6 +834,13 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
             </div>
           </div>
 
+          {!anonReady ? (
+            <AnonymizationGate
+              isLight={isLight}
+              onProceed={() => setAnonReady(true)}
+            />
+          ) : (
+            <>
           <AnimatePresence>
             {isElevatedRisk(activeRisk ?? undefined) && (
               <motion.div
@@ -818,14 +864,14 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                   <div className="min-w-0 flex-1 space-y-2">
                     <p className="font-medium">
                       {activeRisk === "emergency"
-                        ? "Señal de riesgo alto / emergencia detectada"
-                        : "Señal de riesgo elevado detectada"}
+                        ? "Contenido que puede indicar riesgo alto"
+                        : "Contenido que puede indicar riesgo elevado"}
                     </p>
                     <p className="text-xs opacity-90">
-                      MotusAI no puede manejar crisis de forma autónoma. Si hay
-                      riesgo inminente, contacta servicios de emergencia locales
-                      o una línea de ayuda. Esta IA no sustituye juicio clínico
-                      humano.
+                      MotusAI no presta atención de emergencia ni realiza
+                      evaluación clínica automática. Si hay riesgo inminente,
+                      contacta servicios de emergencia locales o una línea de
+                      ayuda. Revisa el caso con tu criterio profesional.
                     </p>
                     <ul className="grid gap-1 text-xs sm:grid-cols-2">
                       {LATAM_CRISIS_RESOURCES.map((r) => (
@@ -846,7 +892,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                         )}
                       >
                         <PhoneCall className="h-3.5 w-3.5" />
-                        Hablar con humano
+                        Contactar a MotusDAO
                       </a>
                       <button
                         type="button"
@@ -950,16 +996,16 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
               >
                 {chatMode === "qa"
                   ? "Pregunta por el Pase Motus, academia, pagos, gobernanza u otros temas del ecosistema. Las respuestas se apoyan en Fuentes Motus cuando hay coincidencia."
-                  : "Describe brevemente tu caso clínico (anónimo) o tu duda de supervisión, y el asistente responderá según el marco ético‑lógico de MotusAI."}
+                  : "Comparte solo material clínico disociado o una duda de revisión de caso. MotusAI ofrece apoyo reflexivo y muestra un análisis estructurado bajo cada respuesta."}
               </p>
             )}
             {messages.map((m) => {
               const visibleSources = filterVisibleRagSources(m.ragSources);
-              const showNotes =
-                isPsm &&
+              const showLogicPanel =
                 m.role === "assistant" &&
                 !m.streaming &&
-                (m.clinicalNotes?.length ?? 0) > 0;
+                chatMode === "supervision";
+              const showNotes = isPsm && (m.clinicalNotes?.length ?? 0) > 0;
 
               return (
                 <div
@@ -1022,25 +1068,19 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                       m.content
                     )}
 
-                    {showNotes && (
-                      <details
-                        className={cn(
-                          "mt-2 rounded-lg border px-2 py-1.5 text-xs",
-                          isLight
-                            ? "border-slate-200 bg-slate-50 text-slate-700"
-                            : "border-white/10 bg-white/[0.04] text-white/75",
-                        )}
-                      >
-                        <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium">
-                          <ClipboardList className="h-3.5 w-3.5" />
-                          Notas de supervisión ({m.clinicalNotes!.length})
-                        </summary>
-                        <ul className="mt-2 list-disc space-y-1 pl-4">
-                          {m.clinicalNotes!.map((note, i) => (
-                            <li key={`${m.id}-note-${i}`}>{note}</li>
-                          ))}
-                        </ul>
-                      </details>
+                    {showLogicPanel && (
+                      <LogicalQuadrantPanel
+                        isLight={isLight}
+                        showNotes={showNotes}
+                        clinicalNotes={m.clinicalNotes}
+                        fields={{
+                          detected_demand: m.detectedDemand ?? null,
+                          primary_signifier: m.primarySignifier ?? null,
+                          secondary_signifier: m.secondarySignifier ?? null,
+                          logical_position: m.logicalPosition ?? null,
+                          observed_pattern: m.observedPattern ?? null,
+                        }}
+                      />
                     )}
 
                     {m.role === "assistant" &&
@@ -1096,7 +1136,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 placeholder={
                   chatMode === "qa"
                     ? "Pregunta sobre MotusDAO, Pase Motus, academia…"
-                    : "Describe tu caso clínico o consulta de supervisión…"
+                    : "Comparte material clínico disociado o una duda de revisión…"
                 }
                 containerClassName="w-full"
                 disabled={isTyping}
@@ -1133,7 +1173,7 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 >
                   <FileText className="h-4 w-4" />
                   <span>
-                    {chatMode === "qa" ? "Ejemplo MotusDAO" : "Caso clinico ejemplo"}
+                    {chatMode === "qa" ? "Ejemplo MotusDAO" : "Ejemplo disociado"}
                   </span>
                 </motion.button>
                 <motion.button
@@ -1253,11 +1293,23 @@ export function AnimatedAIChat({ fullScreen = true }: AnimatedAIChatProps) {
                 )}
               </div>
               <p className="mt-1">
-                Venice prioriza privacidad y anonimato: no vincules información
-                sensible ni datos identificables de pacientes.
+                Usa solo material clínico disociado; no incluyas datos
+                identificables. Las respuestas de IA pueden ser incorrectas y
+                requieren revisión profesional.{" "}
+                <Link
+                  href="/privacy"
+                  className={cn(
+                    "underline underline-offset-2",
+                    isLight ? "text-slate-700" : "text-white/80",
+                  )}
+                >
+                  Privacidad
+                </Link>
               </p>
             </div>
           </motion.div>
+            </>
+          )}
         </motion.div>
       </div>
 

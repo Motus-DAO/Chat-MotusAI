@@ -16,6 +16,11 @@ export type StoredChatMessage = {
   }>;
   clinicalNotes?: string[];
   riskLevel?: "none" | "low" | "medium" | "high" | "emergency";
+  detectedDemand?: string | null;
+  primarySignifier?: string | null;
+  secondarySignifier?: string | null;
+  logicalPosition?: string | null;
+  observedPattern?: string | null;
 };
 
 export type StoredThread = {
@@ -63,13 +68,30 @@ export function saveMotusThread(
       version: MOTUSAI_THREAD_STORAGE_VERSION,
       mode: thread.mode,
       messages: thread.messages.map(
-        ({ id, role, content, ragSources, clinicalNotes, riskLevel }) => ({
+        ({
           id,
           role,
           content,
           ragSources,
           clinicalNotes,
           riskLevel,
+          detectedDemand,
+          primarySignifier,
+          secondarySignifier,
+          logicalPosition,
+          observedPattern,
+        }) => ({
+          id,
+          role,
+          content,
+          ragSources,
+          clinicalNotes,
+          riskLevel,
+          detectedDemand,
+          primarySignifier,
+          secondarySignifier,
+          logicalPosition,
+          observedPattern,
         }),
       ),
       activeRisk: thread.activeRisk,

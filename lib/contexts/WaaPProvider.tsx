@@ -227,6 +227,18 @@ export function WaaPProvider({ children }: WaaPProviderProps) {
         
         // Get WalletConnect Project ID from environment (required for 'wallet' auth method)
         const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+
+        // Staging vs production keyshares are NOT interchangeable.
+        // Default: staging in NODE_ENV=development, production on Vercel.
+        // Override with NEXT_PUBLIC_WAAP_USE_STAGING=true|false so local can
+        // match the deployed account (avoids ACCOUNT_DATA_UNDECRYPTABLE).
+        const stagingFlag = process.env.NEXT_PUBLIC_WAAP_USE_STAGING
+        const useStaging =
+          stagingFlag === "true"
+            ? true
+            : stagingFlag === "false"
+              ? false
+              : process.env.NODE_ENV !== "production"
         
         // Initialize WaaP - this sets up window.waap
         waapSdk.initWaaP({
@@ -248,11 +260,9 @@ export function WaaPProvider({ children }: WaaPProviderProps) {
           },
           // Required for external wallet support (MetaMask, etc.)
           walletConnectProjectId: walletConnectProjectId || undefined,
-          // Isolate local development auth/session behavior from production.
-          // This helps avoid sticky localhost sessions when testing multiple users.
-          useStaging: process.env.NODE_ENV !== 'production',
+          useStaging,
         })
-        console.log('[WAAP] ✅ WaaP SDK initialized')
+        console.log("[WAAP] ✅ WaaP SDK initialized", { useStaging })
 
         // Wait a bit for window.waap to be set up
         await new Promise(resolve => setTimeout(resolve, 100))

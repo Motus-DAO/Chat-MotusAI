@@ -63,9 +63,9 @@ export function StepExito({ onComplete }: StepExitoProps) {
         title: '🎉 ¡Listo! Tu registro ha sido completado',
         subtitle: 'Bienvenido a MotusDAO. Tu cuenta de usuario está lista para usar.',
         features: [
-          { icon: Heart, label: 'Perfil clínico activo', description: 'Tus datos están listos para personalización' },
+          { icon: Heart, label: 'Perfil activo', description: 'Tus datos están listos para personalización' },
           { icon: Bot, label: 'MotusAI personalizado', description: 'Asistente de IA especializado' },
-          { icon: Bot, label: 'Registro personalizado', description: 'Perfil clinico y preferencias' },
+          { icon: Bot, label: 'Registro personalizado', description: 'Perfil y preferencias' },
           { icon: Home, label: 'Panel personal', description: 'Gestiona tu perfil y configuracion' }
         ],
         primaryAction: {
@@ -82,10 +82,10 @@ export function StepExito({ onComplete }: StepExitoProps) {
     } else {
       return {
         title: '🎉 ¡Bienvenido/a a la red profesional de MotusDAO!',
-        subtitle: 'Tu cuenta profesional está lista para usar el flujo de perfil y chat clínico.',
+        subtitle: 'Tu cuenta profesional está lista para usar el perfil y MotusAI.',
         features: [
-          { icon: Heart, label: 'Perfil profesional', description: 'Completa y ajusta tu información clínica' },
-          { icon: Bot, label: 'Chat clínico', description: 'Usa MotusAI en modo profesional' },
+          { icon: Heart, label: 'Perfil profesional', description: 'Completa y ajusta tu información' },
+          { icon: Bot, label: 'MotusAI', description: 'Usa apoyo reflexivo para revisión de casos' },
           { icon: Bot, label: 'Onboarding simplificado', description: 'Sin paneles administrativos adicionales' },
           { icon: Home, label: 'Red profesional', description: 'Conecta con otros profesionales' }
         ],

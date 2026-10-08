@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useUIStore } from "@/lib/store";
 import { useWaaP } from "@/lib/contexts/WaaPProvider";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function MotusAIPage() {
   const { theme } = useUIStore();
@@ -61,9 +62,21 @@ export default function MotusAIPage() {
               : "border-amber-400/20 bg-amber-400/10 text-amber-200"
           }`}
         >
-          Esta IA es experimental y de apoyo a la supervisión clínica para
-          profesionales capacitados. Úsala con criterio ético y profesional: no
-          sustituye juicio clínico, diagnóstico ni intervención de emergencia.
+          <p>
+            MotusAI ofrece apoyo reflexivo para revisión de casos y análisis
+            estructurado. No realiza diagnóstico, tratamiento, psicoterapia,
+            evaluación clínica automática ni atención de emergencia. Revisa toda
+            respuesta con tu criterio profesional.
+          </p>
+          <p className="mt-1 opacity-90">
+            <Link href="/terms" className="underline underline-offset-2">
+              Términos
+            </Link>
+            {" · "}
+            <Link href="/privacy" className="underline underline-offset-2">
+              Privacidad
+            </Link>
+          </p>
         </div>
         <AnimatedAIChat fullScreen={false} />
       </div>

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
 
 // Public routes that don't require registration
-const publicRoutes = ['/', '/contact', '/terms', '/privacy']
+const publicRoutes = ['/', '/contact', '/terms', '/privacy', '/cookies']
 const apiRoutes = ['/api']
 
 export async function middleware(request: NextRequest) {
